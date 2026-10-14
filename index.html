@@ -82,10 +82,10 @@ td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
     </div>
 
     <div id="shopForm">
-      <div class="f"><label>رابط المحل (slug)</label><input id="lSlug" placeholder="مثال: riyadh-gold"></div>
-      <div class="f"><label>كلمة المرور</label><input id="lPass" type="password"></div>
-      <button class="b p" style="width:100%;padding:12px;font-size:14px" onclick="doShopLogin()">دخول</button>
-    </div>
+  <div class="f"><label>اسم المحل</label><input id="lName" placeholder="مثال: مجوهرات الفيصل"></div>
+  <div class="f"><label>كلمة المرور</label><input id="lPass" type="password"></div>
+  <button class="b p" style="width:100%;padding:12px;font-size:14px" onclick="doShopLogin()">دخول</button>
+</div>
 
     <div id="adminForm" class="h">
       <div class="f"><label>كلمة سر الأدمن</label><input id="aPass" type="password"></div>
@@ -242,12 +242,12 @@ function switchAuth(mode) {
 function authMsg(m) { $('#authMsg').textContent = m; }
 
 async function doShopLogin() {
-  const slug = $('#lSlug').value.trim().toLowerCase();
+  const name = $('#lName').value.trim();
   const pass = $('#lPass').value;
-  if (!slug || !pass) return authMsg('املأ الحقول');
+  if (!name || !pass) return authMsg('املأ الحقول');
   try {
-    const r = await db.from('shops').select('*').eq('slug', slug).single();
-    if (r.error || !r.data) return authMsg('رابط المحل غير موجود');
+    const r = await db.from('shops').select('*').eq('name', name).single();
+    if (r.error || !r.data) return authMsg('اسم المحل غير موجود');
     const shop = r.data;
     if (shop.password !== pass) return authMsg('كلمة المرور غير صحيحة');
     if (shop.status !== 'active') return authMsg('الحساب موقوف');
@@ -258,7 +258,6 @@ async function doShopLogin() {
     showShopScreen();
   } catch (e) { authMsg('خطأ: ' + e.message); }
 }
-
 async function doAdminLogin() {
   const pass = $('#aPass').value;
   if (!pass) return authMsg('أدخل كلمة المرور');
@@ -417,6 +416,9 @@ async function createShop() {
   if (!name || !slug || !pass || !wa) return alert('املأ الحقول الإجبارية');
   if (!/^[a-z0-9-]+$/.test(slug)) return alert('الرابط يجب أن يكون حروف إنجليزية صغيرة وأرقام وشُرَط فقط');
   if (pass.length < 4) return alert('كلمة المرور 4 أحرف على الأقل');
+  // التحقق من عدم وجود اسم مطابق
+  const dupCheck = await db.from('shops').select('id').eq('name', name).single();
+  if (dupCheck.data) return alert('⚠️ يوجد محل بنفس الاسم بالفعل. اختر اسماً آخر.');
 
   const exp = new Date(); exp.setDate(exp.getDate() + days);
 
