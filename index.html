@@ -559,22 +559,71 @@ function shopTab(t) {
   else if (t === 'addProduct') shopAddProduct();
   else if (t === 'settings') shopSettings();
 }
-
 async function shopProducts() {
   const r = await db.from('products').select('*').eq('shop_id', session.shop.id).order('created_at', { ascending: false });
   const products = r.data || [];
+
+  // ====== الإحصائيات ======
+  const stats = {
+    total: products.length,
+    totalWeight: 0,
+    totalValue: 0,
+    byKarat: {}, // {21: {count, weight, value}}
+    byTag: {},   // {خواتم: count}
+  };
+
+  products.forEach(p => {
+    const w = parseFloat(p.weight) || 0;
+    const price = calcPrice(p);
+    stats.totalWeight += w;
+    stats.totalValue += price;
+
+    const k = p.karat;
+    if (!stats.byKarat[k]) stats.byKarat[k] = { count: 0, weight: 0, value: 0 };
+    stats.byKarat[k].count++;
+    stats.byKarat[k].weight += w;
+    stats.byKarat[k].value += price;
+
+    (p.tags || []).forEach(t => {
+      if (!stats.byTag[t]) stats.byTag[t] = 0;
+      stats.byTag[t]++;
+    });
+  });
+
+  const karatRows = [24, 22, 21, 18, 14].map(k => {
+    const s = stats.byKarat[k];
+    if (!s) return '';
+    return `<tr>
+      <td>عيار ${k}</td>
+      <td>${s.count}</td>
+      <td>${s.weight.toFixed(2)} جم</td>
+      <td>${mn(s.value)} ر.س</td>
+    </tr>`;
+  }).join('');
+
+  const tagChips = Object.entries(stats.byTag).map(([t, c]) =>
+    `<span style="background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;margin:3px">${esc(t)} (${c})</span>`
+  ).join('');
+
+  // ====== بطاقات المنتجات ======
   let cards = '';
   products.forEach(p => {
     const price = calcPrice(p);
+    const tags = (p.tags || []).map(t =>
+      `<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;margin:2px">${esc(t)}</span>`
+    ).join('');
+
     cards += `
       <div class="card">
-        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title)}" onerror="this.style.display='none'">` : ''}
+        ${p.image_url ? `<img src="${esc(p.image_url)}" onerror="this.style.display='none'">` : ''}
         <h3>${esc(p.title)}</h3>
+        ${tags ? `<div style="margin:4px 0">${tags}</div>` : ''}
         <div class="meta">الوزن: ${p.weight} جم • عيار ${p.karat}</div>
         <div class="meta">المصنعية: ${p.making_charge_value} ${p.making_charge_type === 'per_gram' ? '/جم' : p.making_charge_type === 'percent' ? '%' : 'ثابت'}</div>
         <div class="price">${mn(price)} ر.س</div>
         ${p.status === 'hidden' ? '<span class="bd w">مخفي</span>' : '<span class="bd o">معروض</span>'}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <button class="b sm p" onclick="shopEditProduct('${p.id}')">✏️ تعديل</button>
           <button class="b sm w" onclick="toggleProduct('${p.id}', '${p.status}')">${p.status === 'available' ? 'إخفاء' : 'إظهار'}</button>
           <button class="b sm d" onclick="deleteProduct('${p.id}')">حذف</button>
         </div>
@@ -584,6 +633,27 @@ async function shopProducts() {
 
   $('#shopContent').innerHTML = `
     <div class="panel">
+      <h2>📊 إحصائيات المخزون</h2>
+      <div class="sts">
+        <div class="st"><div class="l">إجمالي القطع</div><div class="v b">${stats.total}</div></div>
+        <div class="st"><div class="l">إجمالي الوزن</div><div class="v">${stats.totalWeight.toFixed(2)} جم</div></div>
+        <div class="st"><div class="l">القيمة الكلية</div><div class="v g">${mn(stats.totalValue)}</div></div>
+        <div class="st"><div class="l">عدد التصنيفات</div><div class="v y">${Object.keys(stats.byTag).length}</div></div>
+      </div>
+
+      ${karatRows ? `
+      <h3 style="font-size:14px;margin:16px 0 8px;color:#c9a227">تفصيل حسب العيار</h3>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>العيار</th><th>عدد القطع</th><th>الوزن</th><th>القيمة</th></tr></thead>
+          <tbody>${karatRows}</tbody>
+        </table>
+      </div>` : ''}
+
+      ${tagChips ? `<h3 style="font-size:14px;margin:16px 0 8px;color:#c9a227">التصنيفات</h3><div>${tagChips}</div>` : ''}
+    </div>
+
+    <div class="panel">
       <h2>📦 منتجاتك (${products.length})</h2>
       <p style="color:#64748b;font-size:13px;margin-bottom:14px">
         رابط محلك العام: <a href="#shop=${esc(session.shop.slug)}" target="_blank" style="color:#c9a227;font-weight:700">${location.origin}/#shop=${esc(session.shop.slug)}</a>
@@ -592,7 +662,6 @@ async function shopProducts() {
     </div>
   `;
 }
-
 function calcPrice(p) {
   const goldPrice = session.prices[p.karat] || 0;
   const base = goldPrice * parseFloat(p.weight || 0);
@@ -602,37 +671,63 @@ function calcPrice(p) {
   else making = parseFloat(p.making_charge_value || 0);
   return base + making;
 }
+let editingProductId = null;
 
 function shopAddProduct() {
+  editingProductId = null;
+  renderProductForm({});
+}
+
+function shopEditProduct(id) {
+  // ابحث عن المنتج من قائمة session
+  db.from('products').select('*').eq('id', id).single().then(r => {
+    if (r.error || !r.data) return alert('المنتج غير موجود');
+    editingProductId = id;
+    renderProductForm(r.data);
+    shopTab('addProduct'); // نفس الصفحة
+  });
+}
+
+function renderProductForm(p) {
+  const tagsStr = (p.tags || []).join('، ');
+
   $('#shopContent').innerHTML = `
     <div class="panel">
-      <h2>➕ إضافة منتج</h2>
-      <div class="f"><label>اسم المنتج *</label><input id="npTitle" placeholder="خاتم ذهب كلاسيكي"></div>
-      <div class="f"><label>الوصف</label><textarea id="npDesc" rows="2" style="font-family:inherit;resize:vertical"></textarea></div>
-      <div class="f"><label>رابط الصورة (اختياري)</label><input id="npImg" placeholder="https://..."></div>
+      <h2>${editingProductId ? '✏️ تعديل منتج' : '➕ إضافة منتج'}</h2>
+      <div class="f"><label>اسم المنتج *</label><input id="npTitle" value="${esc(p.title || '')}" placeholder="خاتم ذهب كلاسيكي"></div>
+      <div class="f"><label>الوصف</label><textarea id="npDesc" rows="2" style="font-family:inherit;resize:vertical">${esc(p.description || '')}</textarea></div>
+      <div class="f"><label>رابط الصورة (اختياري)</label><input id="npImg" value="${esc(p.image_url || '')}" placeholder="https://..."></div>
+
+      <div class="f">
+        <label>التصنيفات (افصل بفاصلة "،" — يمكن أكثر من تصنيف)</label>
+        <input id="npTags" value="${esc(tagsStr)}" placeholder="مثال: خواتم، رجالي، كلاسيك">
+        <div style="font-size:11.5px;color:#64748b;margin-top:5px">💡 كل تصنيف يساعد الزبون في الفلترة لاحقاً</div>
+      </div>
+
       <div class="g2">
-        <div class="f"><label>الوزن (جرام) *</label><input id="npWeight" type="number" step="0.001"></div>
+        <div class="f"><label>الوزن (جرام) *</label><input id="npWeight" type="number" step="0.001" value="${p.weight || ''}"></div>
         <div class="f"><label>العيار *</label>
           <select id="npKarat">
-            <option value="24">24</option>
-            <option value="22">22</option>
-            <option value="21" selected>21</option>
-            <option value="18">18</option>
-            <option value="14">14</option>
+            ${[24,22,21,18,14].map(k => `<option value="${k}"${p.karat == k ? ' selected' : ''}>${k}</option>`).join('')}
           </select>
         </div>
       </div>
+
       <div class="g2">
         <div class="f"><label>نوع المصنعية *</label>
           <select id="npType">
-            <option value="per_gram">لكل جرام</option>
-            <option value="percent">نسبة %</option>
-            <option value="fixed">مبلغ ثابت</option>
+            <option value="per_gram"${p.making_charge_type === 'per_gram' ? ' selected' : ''}>لكل جرام</option>
+            <option value="percent"${p.making_charge_type === 'percent' ? ' selected' : ''}>نسبة %</option>
+            <option value="fixed"${p.making_charge_type === 'fixed' ? ' selected' : ''}>مبلغ ثابت</option>
           </select>
         </div>
-        <div class="f"><label>قيمة المصنعية *</label><input id="npVal" type="number" step="0.01" value="0"></div>
+        <div class="f"><label>قيمة المصنعية *</label><input id="npVal" type="number" step="0.01" value="${p.making_charge_value || 0}"></div>
       </div>
-      <button class="b p" style="padding:11px 24px" onclick="saveProduct()">💾 حفظ المنتج</button>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="b p" style="padding:11px 24px" onclick="saveProduct()">💾 ${editingProductId ? 'حفظ التعديلات' : 'حفظ المنتج'}</button>
+        ${editingProductId ? '<button class="b" style="padding:11px 24px" onclick="shopTab(\'products\')">إلغاء</button>' : ''}
+      </div>
     </div>
   `;
 }
@@ -645,21 +740,30 @@ async function saveProduct() {
   const karat = parseInt($('#npKarat').value);
   const type = $('#npType').value;
   const val = parseFloat($('#npVal').value) || 0;
+  const tagsRaw = $('#npTags').value.trim();
+  const tags = tagsRaw ? tagsRaw.split(/[,،]/).map(t => t.trim()).filter(t => t) : [];
 
   if (!title) return alert('اسم المنتج مطلوب');
   if (!weight || weight <= 0) return alert('الوزن مطلوب');
 
   try {
-    const r = await db.from('products').insert({
-      shop_id: session.shop.id, title, description: desc, image_url: img,
-      weight, karat, making_charge_type: type, making_charge_value: val, status: 'available'
-    });
-    if (r.error) throw new Error(r.error.message);
-    alert('✅ تم حفظ المنتج');
+    if (editingProductId) {
+      await sqlQuery(
+        `UPDATE products SET title=$1, description=$2, image_url=$3, weight=$4, karat=$5, making_charge_type=$6, making_charge_value=$7, tags=$8 WHERE id=$9`,
+        [title, desc, img, weight, karat, type, val, tags, editingProductId]
+      );
+      alert('✅ تم حفظ التعديلات');
+    } else {
+      await sqlQuery(
+        `INSERT INTO products (shop_id, title, description, image_url, weight, karat, making_charge_type, making_charge_value, status, tags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'available',$9)`,
+        [session.shop.id, title, desc, img, weight, karat, type, val, tags]
+      );
+      alert('✅ تم حفظ المنتج');
+    }
+    editingProductId = null;
     shopTab('products');
   } catch (e) { alert('خطأ: ' + e.message); }
 }
-
 async function toggleProduct(id, status) {
   const ns = status === 'available' ? 'hidden' : 'available';
   await db.from('products').update({ status: ns }).eq('id', id);
@@ -713,6 +817,9 @@ async function shopChangePass() {
 }
 
 // ==================== Public Shop View ====================
+let publicProducts = [];
+let publicFilter = '';
+
 async function loadPublicShop(slug) {
   const r = await db.from('shops').select('*').eq('slug', slug).single();
   if (r.error || !r.data) return showPublicError('المحل غير موجود');
@@ -722,22 +829,43 @@ async function loadPublicShop(slug) {
 
   await loadPrices();
   const pr = await db.from('products').select('*').eq('shop_id', shop.id).order('created_at', { ascending: false });
-  const products = (pr.data || []).filter(p => p.status === 'available');
+  publicProducts = (pr.data || []).filter(p => p.status === 'available');
 
   session.publicShop = shop;
   $('#pubShopName').textContent = '💎 ' + shop.name + (shop.city ? ' — ' + shop.city : '');
   const waMsg = encodeURIComponent('مرحباً، أريد الاستفسار عن منتجاتكم');
   $('#pubWhatsapp').href = 'https://wa.me/' + (shop.whatsapp || '').replace(/\D/g, '') + '?text=' + waMsg;
 
+  renderPublicShop();
+}
+
+function renderPublicShop() {
+  const shop = session.publicShop;
+  const products = publicProducts;
+
+  // استخراج كل التصنيفات
+  const allTags = [...new Set(products.flatMap(p => p.tags || []))].sort((a, b) => a.localeCompare(b, 'ar'));
+
+  // فلترة
+  const filtered = publicFilter
+    ? products.filter(p => (p.tags || []).includes(publicFilter))
+    : products;
+
+  // بطاقات
   let cards = '';
-  products.forEach(p => {
+  filtered.forEach(p => {
     const price = calcPrice(p);
+    const tags = (p.tags || []).map(t =>
+      `<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;margin:2px">${esc(t)}</span>`
+    ).join('');
     const waLink = 'https://wa.me/' + (shop.whatsapp || '').replace(/\D/g, '') + '?text=' +
       encodeURIComponent(`مرحباً، أرغب بطلب:\n${p.title}\nالوزن: ${p.weight} جم\nالعيار: ${p.karat}\nالسعر: ${price.toFixed(2)} ر.س`);
+
     cards += `
       <div class="card">
-        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title)}" onerror="this.style.display='none'">` : ''}
+        ${p.image_url ? `<img src="${esc(p.image_url)}" onerror="this.style.display='none'">` : ''}
         <h3>${esc(p.title)}</h3>
+        ${tags ? `<div style="margin:4px 0">${tags}</div>` : ''}
         ${p.description ? `<div class="meta">${esc(p.description)}</div>` : ''}
         <div class="meta">الوزن: ${p.weight} جم • عيار ${p.karat}</div>
         <div class="price">${mn(price)} ر.س</div>
@@ -745,6 +873,20 @@ async function loadPublicShop(slug) {
       </div>
     `;
   });
+
+  // شريط الفلاتر
+  const filterBar = allTags.length ? `
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">
+      <div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:8px">🔍 تصفية حسب التصنيف:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="b sm ${!publicFilter ? 'p' : ''}" onclick="filterPublic('')">الكل (${products.length})</button>
+        ${allTags.map(t => {
+          const count = products.filter(p => (p.tags || []).includes(t)).length;
+          return `<button class="b sm ${publicFilter === t ? 'p' : ''}" onclick="filterPublic('${esc(t).replace(/'/g, "\\'")}')">${esc(t)} (${count})</button>`;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
 
   $('#publicContent').innerHTML = `
     <div class="calc">
@@ -754,11 +896,7 @@ async function loadPublicShop(slug) {
         <div class="f"><label>الوزن (جرام)</label><input id="calcW" type="number" step="0.01" value="1" oninput="runCalc()"></div>
         <div class="f"><label>العيار</label>
           <select id="calcK" onchange="runCalc()">
-            <option value="24">24</option>
-            <option value="22">22</option>
-            <option value="21" selected>21</option>
-            <option value="18">18</option>
-            <option value="14">14</option>
+            ${[24,22,21,18,14].map(k => `<option value="${k}"${k === 21 ? ' selected' : ''}>${k}</option>`).join('')}
           </select>
         </div>
         <div class="f"><label>المصنعية</label><input id="calcM" type="number" step="0.01" value="0" oninput="runCalc()"></div>
@@ -773,16 +911,22 @@ async function loadPublicShop(slug) {
       <div class="result" id="calcResult">—</div>
     </div>
 
+    ${filterBar}
+
     <div class="ttl">
-      <h1>منتجاتنا</h1>
-      <p>${products.length} قطعة معروضة</p>
+      <h1>${publicFilter ? 'تصنيف: ' + esc(publicFilter) : 'منتجاتنا'}</h1>
+      <p>${filtered.length} قطعة معروضة</p>
     </div>
 
-    ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا توجد منتجات معروضة حالياً</div>'}
+    ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا توجد منتجات</div>'}
   `;
   runCalc();
 }
 
+function filterPublic(tag) {
+  publicFilter = tag;
+  renderPublicShop();
+}
 function runCalc() {
   const w = parseFloat($('#calcW').value) || 0;
   const k = parseInt($('#calcK').value);
@@ -885,6 +1029,7 @@ Object.assign(window, {
   extendShop, toggleShop, resetShopPass, deleteShop, adminSettings, changeAdminPass,
   shopTab, shopRefresh, shopProducts, shopAddProduct, saveProduct, toggleProduct, deleteProduct,
   copyShopLink, shopSettings, shopChangePass, runCalc,
+  shopEditProduct, renderProductForm, filterPublic,
   copyToClipboard   // ← أضف هذا
 });
 
