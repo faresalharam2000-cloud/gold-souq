@@ -569,17 +569,26 @@ function shopTab(t) {
   }
   else if (t === 'settings') shopSettings();
 }
+let shopSearchQuery = '';
+
 async function shopProducts() {
   const r = await db.from('products').select('*').eq('shop_id', session.shop.id).order('created_at', { ascending: false });
   const products = r.data || [];
+
+  // إعادة تحميل بيانات المتجر (للحصول على public_enabled المحدّث)
+  const sr = await db.from('shops').select('*').eq('id', session.shop.id).single();
+  if (!sr.error) session.shop = sr.data;
+
+  const publicEnabled = session.shop.public_enabled !== false;
+  const shopUrl = location.origin + '/#shop=' + session.shop.slug;
 
   // ====== الإحصائيات ======
   const stats = {
     total: products.length,
     totalWeight: 0,
-    totalGoldValue: 0,      // قيمة الذهب الخام (بدون أجور)
-    totalMaking: 0,         // إجمالي الأجور
-    totalFullValue: 0,      // الذهب + الأجور
+    totalGoldValue: 0,
+    totalMaking: 0,
+    totalFullValue: 0,
     byKarat: {},
     byTag: {},
   };
@@ -612,7 +621,6 @@ async function shopProducts() {
     });
   });
 
-  // ====== بطاقة أسعار الذهب ======
   const goldPricesBar = [24, 22, 21, 18, 14].map(k => `
     <div class="st" style="border-right:4px solid #c9a227">
       <div class="l">عيار ${k}</div>
@@ -621,7 +629,6 @@ async function shopProducts() {
     </div>
   `).join('');
 
-  // ====== جدول حسب العيار ======
   const karatRows = [24, 22, 21, 18, 14].map(k => {
     const s = stats.byKarat[k];
     if (!s) return '';
@@ -639,9 +646,19 @@ async function shopProducts() {
     `<span style="background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;margin:3px">${esc(t)} (${c})</span>`
   ).join('');
 
+  // ====== البحث ======
+  const q = shopSearchQuery.trim().toLowerCase();
+  const filteredProducts = q ? products.filter(p => {
+    const inSku = (p.sku || '').toLowerCase().includes(q);
+    const inTitle = (p.title || '').toLowerCase().includes(q);
+    const inDesc = (p.description || '').toLowerCase().includes(q);
+    const inTags = (p.tags || []).some(t => t.toLowerCase().includes(q));
+    return inSku || inTitle || inDesc || inTags;
+  }) : products;
+
   // ====== بطاقات المنتجات ======
   let cards = '';
-  products.forEach(p => {
+  filteredProducts.forEach(p => {
     const price = calcPrice(p);
     const w = parseFloat(p.weight) || 0;
     const gp = session.prices[p.karat] || 0;
@@ -655,6 +672,10 @@ async function shopProducts() {
     cards += `
       <div class="card">
         ${p.image_url ? `<img src="${esc(p.image_url)}" onerror="this.style.display='none'">` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#334155">${esc(p.sku || '—')}</span>
+          ${p.status === 'hidden' ? '<span class="bd w">مخفي</span>' : '<span class="bd o">معروض</span>'}
+        </div>
         <h3>${esc(p.title)}</h3>
         ${tags ? `<div style="margin:4px 0">${tags}</div>` : ''}
         <div class="meta">الوزن: ${p.weight} جم • عيار ${p.karat}</div>
@@ -663,11 +684,10 @@ async function shopProducts() {
           <div style="display:flex;justify-content:space-between"><span style="color:#64748b">الأجور:</span><strong style="color:#2563eb">${mn(making)}</strong></div>
           <div style="display:flex;justify-content:space-between;border-top:1px dashed #c9a227;margin-top:4px;padding-top:4px"><strong>الإجمالي:</strong><strong style="color:#16a34a">${mn(price)}</strong></div>
         </div>
-        ${p.status === 'hidden' ? '<span class="bd w">مخفي</span>' : '<span class="bd o">معروض</span>'}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
           <button class="b sm p" onclick="shopEditProduct('${p.id}')">✏️ تعديل</button>
           <button class="b sm w" onclick="toggleProduct('${p.id}', '${p.status}')">${p.status === 'available' ? 'إخفاء' : 'إظهار'}</button>
-          <button class="b sm d" onclick="deleteProduct('${p.id}')">حذف</button>
+          <button class="b sm d" onclick="deleteProduct('${p.id}')">🗑️ حذف</button>
         </div>
       </div>
     `;
@@ -675,8 +695,26 @@ async function shopProducts() {
 
   $('#shopContent').innerHTML = `
     <div class="panel">
+      <h2>🔗 رابط متجرك للزبائن</h2>
+      <div style="background:linear-gradient(135deg,${publicEnabled ? '#f0fdf4,#dcfce7' : '#fef2f2,#fee2e2'});border:2px solid ${publicEnabled ? '#86efac' : '#fecaca'};border-radius:12px;padding:16px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+          <div>
+            <span class="bd ${publicEnabled ? 'o' : 'r'}" style="font-size:13px;padding:5px 12px">${publicEnabled ? '🟢 الرابط مفعّل' : '🔴 الرابط موقوف'}</span>
+          </div>
+          <button class="b ${publicEnabled ? 'w' : 's'}" onclick="togglePublicLink()" style="padding:9px 18px;font-weight:700">
+            ${publicEnabled ? '⏸️ إيقاف الرابط' : '▶️ تشغيل الرابط'}
+          </button>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-family:monospace;font-size:12.5px;direction:ltr;text-align:left;word-break:break-all;margin-bottom:10px">${esc(shopUrl)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="b p" onclick="copyShopLink()" style="padding:8px 16px;font-weight:700">📋 نسخ الرابط</button>
+          <a class="b" href="${esc(shopUrl)}" target="_blank" style="padding:8px 16px;text-decoration:none;display:inline-block;font-weight:700">👁️ معاينة</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2>💰 أسعار الذهب اليوم</h2>
-      <p style="color:#64748b;font-size:12.5px;margin-bottom:12px">الأسعار التي حدّثها المدير — تُحدَّث تلقائياً في كل المنتجات</p>
       <div class="sts">${goldPricesBar}</div>
     </div>
 
@@ -720,12 +758,50 @@ async function shopProducts() {
 
     <div class="panel">
       <h2>📦 منتجاتك (${products.length})</h2>
-      <p style="color:#64748b;font-size:13px;margin-bottom:14px">
-        رابط محلك: <a href="#shop=${esc(session.shop.slug)}" target="_blank" style="color:#c9a227;font-weight:700">${location.origin}/#shop=${esc(session.shop.slug)}</a>
-      </p>
-      ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا منتجات بعد</div>'}
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <input id="shopSearch" placeholder="🔍 ابحث بالاسم أو رقم القطعة أو التصنيف..." 
+          value="${esc(shopSearchQuery)}" 
+          oninput="shopSearchChange(this.value)"
+          style="flex:1;min-width:200px">
+        ${shopSearchQuery ? '<button class="b" onclick="shopSearchChange(\'\')">✕ مسح</button>' : ''}
+      </div>
+
+      ${q ? `<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:13px;color:#1e40af">🔎 نتائج البحث: <strong>${filteredProducts.length}</strong> من أصل ${products.length}</div>` : ''}
+
+      ${cards ? `<div class="grid">${cards}</div>` : (q ? '<div class="empty">لا توجد نتائج مطابقة</div>' : '<div class="empty">لا منتجات بعد</div>')}
     </div>
   `;
+
+  // إعادة التركيز على حقل البحث إذا كنا نبحث
+  if (shopSearchQuery) {
+    setTimeout(() => {
+      const inp = $('#shopSearch');
+      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }, 10);
+  }
+}
+
+function shopSearchChange(v) {
+  shopSearchQuery = v;
+  // احتفظ بقيمة البحث أثناء إعادة الرسم
+  const sel = window.getSelection();
+  shopProducts();
+}
+
+async function togglePublicLink() {
+  const current = session.shop.public_enabled !== false;
+  const newVal = !current;
+  const label = newVal ? 'تشغيل' : 'إيقاف';
+  if (!confirm(label + ' رابط متجرك للزبائن؟' + (newVal ? '' : '\n\nلن يستطيع الزبائن الوصول للمنتجات.'))) return;
+
+  try {
+    await sqlQuery('UPDATE shops SET public_enabled = $1 WHERE id = $2', [newVal, session.shop.id]);
+    session.shop.public_enabled = newVal;
+    shopProducts();
+    alert('✅ تم ' + label + ' الرابط');
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+  }
 }
 function calcPrice(p) {
   const goldPrice = session.prices[p.karat] || 0;
@@ -754,18 +830,31 @@ function shopEditProduct(id) {
 }
 function renderProductForm(p) {
   const tagsStr = (p.tags || []).join('، ');
+  // توليد رقم تلقائي لو جديد
+  const autoSku = p.sku || ('P-' + Date.now().toString(36).toUpperCase().slice(-6));
 
   $('#shopContent').innerHTML = `
     <div class="panel">
       <h2>${editingProductId ? '✏️ تعديل منتج' : '➕ إضافة منتج'}</h2>
-      <div class="f"><label>اسم المنتج *</label><input id="npTitle" value="${esc(p.title || '')}" placeholder="خاتم ذهب كلاسيكي"></div>
+
+      <div class="g2">
+        <div class="f">
+          <label>رقم القطعة *</label>
+          <input id="npSku" value="${esc(autoSku)}" placeholder="P-000123">
+          <div style="font-size:11px;color:#64748b;margin-top:4px">💡 رقم فريد للقطعة (يظهر للزبون للبحث)</div>
+        </div>
+        <div class="f">
+          <label>اسم المنتج *</label>
+          <input id="npTitle" value="${esc(p.title || '')}" placeholder="خاتم ذهب كلاسيكي">
+        </div>
+      </div>
+
       <div class="f"><label>الوصف</label><textarea id="npDesc" rows="2" style="font-family:inherit;resize:vertical">${esc(p.description || '')}</textarea></div>
       <div class="f"><label>رابط الصورة (اختياري)</label><input id="npImg" value="${esc(p.image_url || '')}" placeholder="https://..."></div>
 
       <div class="f">
-        <label>التصنيفات (افصل بفاصلة "،" — يمكن أكثر من تصنيف)</label>
+        <label>التصنيفات (افصل بفاصلة "،")</label>
         <input id="npTags" value="${esc(tagsStr)}" placeholder="مثال: خواتم، رجالي، كلاسيك">
-        <div style="font-size:11.5px;color:#64748b;margin-top:5px">💡 كل تصنيف يساعد الزبون في الفلترة لاحقاً</div>
       </div>
 
       <div class="g2">
@@ -790,13 +879,13 @@ function renderProductForm(p) {
 
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="b p" style="padding:11px 24px" onclick="saveProduct()">💾 ${editingProductId ? 'حفظ التعديلات' : 'حفظ المنتج'}</button>
-        ${editingProductId ? '<button class="b" style="padding:11px 24px" onclick="shopTab(\'products\')">إلغاء</button>' : ''}
+        ${editingProductId ? '<button class="b" style="padding:11px 24px" onclick="editingProductId=null;shopTab(\'products\')">إلغاء</button>' : ''}
       </div>
     </div>
   `;
 }
-
 async function saveProduct() {
+  const sku = $('#npSku').value.trim();
   const title = $('#npTitle').value.trim();
   const desc = $('#npDesc').value.trim();
   const img = $('#npImg').value.trim();
@@ -807,20 +896,35 @@ async function saveProduct() {
   const tagsRaw = $('#npTags').value.trim();
   const tags = tagsRaw ? tagsRaw.split(/[,،]/).map(t => t.trim()).filter(t => t) : [];
 
+  if (!sku) return alert('رقم القطعة مطلوب');
   if (!title) return alert('اسم المنتج مطلوب');
   if (!weight || weight <= 0) return alert('الوزن مطلوب');
 
   try {
     if (editingProductId) {
+      // التحقق من عدم تكرار الرقم (لبائع آخر)
+      const dup = await sqlQuery(
+        'SELECT id FROM products WHERE sku = $1 AND shop_id = $2 AND id != $3',
+        [sku, session.shop.id, editingProductId]
+      );
+      if (dup.length > 0) return alert('⚠️ رقم القطعة مستخدم من قبل');
+
       await sqlQuery(
-        `UPDATE products SET title=$1, description=$2, image_url=$3, weight=$4, karat=$5, making_charge_type=$6, making_charge_value=$7, tags=$8 WHERE id=$9`,
-        [title, desc, img, weight, karat, type, val, tags, editingProductId]
+        `UPDATE products SET sku=$1, title=$2, description=$3, image_url=$4, weight=$5, karat=$6, making_charge_type=$7, making_charge_value=$8, tags=$9 WHERE id=$10`,
+        [sku, title, desc, img, weight, karat, type, val, tags, editingProductId]
       );
       alert('✅ تم حفظ التعديلات');
     } else {
+      // التحقق من عدم التكرار
+      const dup = await sqlQuery(
+        'SELECT id FROM products WHERE sku = $1 AND shop_id = $2',
+        [sku, session.shop.id]
+      );
+      if (dup.length > 0) return alert('⚠️ رقم القطعة مستخدم من قبل. غيّره أو احذفه.');
+
       await sqlQuery(
-        `INSERT INTO products (shop_id, title, description, image_url, weight, karat, making_charge_type, making_charge_value, status, tags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'available',$9)`,
-        [session.shop.id, title, desc, img, weight, karat, type, val, tags]
+        `INSERT INTO products (shop_id, sku, title, description, image_url, weight, karat, making_charge_type, making_charge_value, status, tags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'available',$10)`,
+        [session.shop.id, sku, title, desc, img, weight, karat, type, val, tags]
       );
       alert('✅ تم حفظ المنتج');
     }
@@ -889,6 +993,7 @@ async function loadPublicShop(slug) {
   if (r.error || !r.data) return showPublicError('المحل غير موجود');
   const shop = r.data;
   if (shop.status !== 'active') return showPublicError('الحساب موقوف حالياً');
+  if (shop.public_enabled === false) return showPublicError('رابط المتجر موقوف مؤقتاً. تواصل مع الصائغ.');
   if (shop.expires_at && new Date(shop.expires_at) < new Date()) return showPublicError('انتهت صلاحية هذا المحل');
 
   await loadPrices();
@@ -907,7 +1012,14 @@ function renderPublicShop() {
   const products = publicProducts;
 
   const allTags = [...new Set(products.flatMap(p => p.tags || []))].sort((a, b) => a.localeCompare(b, 'ar'));
-  const filtered = publicFilter ? products.filter(p => (p.tags || []).includes(publicFilter)) : products;
+ let filtered = publicFilter ? products.filter(p => (p.tags || []).includes(publicFilter)) : products;
+if (shopQ) {
+  filtered = filtered.filter(p =>
+    (p.sku || '').toLowerCase().includes(shopQ) ||
+    (p.title || '').toLowerCase().includes(shopQ) ||
+    (p.description || '').toLowerCase().includes(shopQ)
+  );
+}
 
   let cards = '';
   filtered.forEach(p => {
@@ -930,7 +1042,10 @@ function renderPublicShop() {
     cards += `
       <div class="card">
         ${p.image_url ? `<img src="${esc(p.image_url)}" onerror="this.style.display='none'">` : ''}
-        <h3>${esc(p.title)}</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+  <span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#334155">${esc(p.sku || '—')}</span>
+</div>
+<h3>${esc(p.title)}</h3>
         ${tags ? `<div style="margin:4px 0">${tags}</div>` : ''}
         ${p.description ? `<div class="meta">${esc(p.description)}</div>` : ''}
 
@@ -966,6 +1081,7 @@ function renderPublicShop() {
     `;
   });
 
+  const shopQ = (window.publicSearch || '').trim().toLowerCase();
   const filterBar = allTags.length ? `
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">
       <div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:8px">🔍 تصفية حسب التصنيف:</div>
@@ -979,6 +1095,11 @@ function renderPublicShop() {
     </div>
   ` : '';
 
+ <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">
+  <input id="publicSearch" placeholder="🔍 ابحث برقم القطعة أو الاسم..." 
+    value="${esc(window.publicSearch || '')}" 
+    oninput="publicSearchChange(this.value)">
+</div>
   $('#publicContent').innerHTML = `
     <div class="calc">
       <h2>🧮 حاسبة الذهب</h2>
@@ -1091,6 +1212,15 @@ function copyToClipboard(text, el) {
     setTimeout(() => { el.textContent = text; }, 1000);
   });
 }
+  window.publicSearch = '';
+function publicSearchChange(v) {
+  window.publicSearch = v;
+  renderPublicShop();
+  setTimeout(() => {
+    const inp = $('#publicSearch');
+    if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }, 10);
+}
 async function boot() {
   const routed = await route();
   if (routed) return;
@@ -1134,6 +1264,7 @@ Object.assign(window, {
   shopTab, shopRefresh, shopProducts, shopAddProduct, saveProduct, toggleProduct, deleteProduct,
   copyShopLink, shopSettings, shopChangePass, runCalc,
   shopEditProduct, renderProductForm, filterPublic,
+  shopSearchChange, togglePublicLink, publicSearchChange,
   copyToClipboard   // ← أضف هذا
 });
 
