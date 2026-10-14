@@ -567,22 +567,34 @@ async function shopProducts() {
   const stats = {
     total: products.length,
     totalWeight: 0,
-    totalValue: 0,
-    byKarat: {}, // {21: {count, weight, value}}
-    byTag: {},   // {خواتم: count}
+    totalGoldValue: 0,      // قيمة الذهب الخام (بدون أجور)
+    totalMaking: 0,         // إجمالي الأجور
+    totalFullValue: 0,      // الذهب + الأجور
+    byKarat: {},
+    byTag: {},
   };
 
   products.forEach(p => {
     const w = parseFloat(p.weight) || 0;
-    const price = calcPrice(p);
+    const gp = session.prices[p.karat] || 0;
+    const goldValue = gp * w;
+    let making = 0;
+    if (p.making_charge_type === 'per_gram') making = parseFloat(p.making_charge_value || 0) * w;
+    else if (p.making_charge_type === 'percent') making = goldValue * parseFloat(p.making_charge_value || 0) / 100;
+    else making = parseFloat(p.making_charge_value || 0);
+
     stats.totalWeight += w;
-    stats.totalValue += price;
+    stats.totalGoldValue += goldValue;
+    stats.totalMaking += making;
+    stats.totalFullValue += (goldValue + making);
 
     const k = p.karat;
-    if (!stats.byKarat[k]) stats.byKarat[k] = { count: 0, weight: 0, value: 0 };
+    if (!stats.byKarat[k]) stats.byKarat[k] = { count: 0, weight: 0, goldValue: 0, making: 0, fullValue: 0 };
     stats.byKarat[k].count++;
     stats.byKarat[k].weight += w;
-    stats.byKarat[k].value += price;
+    stats.byKarat[k].goldValue += goldValue;
+    stats.byKarat[k].making += making;
+    stats.byKarat[k].fullValue += (goldValue + making);
 
     (p.tags || []).forEach(t => {
       if (!stats.byTag[t]) stats.byTag[t] = 0;
@@ -590,14 +602,26 @@ async function shopProducts() {
     });
   });
 
+  // ====== بطاقة أسعار الذهب ======
+  const goldPricesBar = [24, 22, 21, 18, 14].map(k => `
+    <div class="st" style="border-right:4px solid #c9a227">
+      <div class="l">عيار ${k}</div>
+      <div class="v" style="font-size:17px;color:#c9a227">${session.prices[k] ? mn(session.prices[k]) : '—'}</div>
+      <div style="font-size:10.5px;color:#64748b;margin-top:2px">ر.س / جم</div>
+    </div>
+  `).join('');
+
+  // ====== جدول حسب العيار ======
   const karatRows = [24, 22, 21, 18, 14].map(k => {
     const s = stats.byKarat[k];
     if (!s) return '';
     return `<tr>
-      <td>عيار ${k}</td>
+      <td><strong>عيار ${k}</strong><div style="font-size:11px;color:#64748b">${session.prices[k] ? mn(session.prices[k]) + ' ر.س/جم' : '—'}</div></td>
       <td>${s.count}</td>
       <td>${s.weight.toFixed(2)} جم</td>
-      <td>${mn(s.value)} ر.س</td>
+      <td style="color:#c9a227;font-weight:700">${mn(s.goldValue)}</td>
+      <td style="color:#2563eb">${mn(s.making)}</td>
+      <td style="color:#16a34a;font-weight:800">${mn(s.fullValue)}</td>
     </tr>`;
   }).join('');
 
@@ -609,6 +633,11 @@ async function shopProducts() {
   let cards = '';
   products.forEach(p => {
     const price = calcPrice(p);
+    const w = parseFloat(p.weight) || 0;
+    const gp = session.prices[p.karat] || 0;
+    const goldValue = gp * w;
+    const making = price - goldValue;
+
     const tags = (p.tags || []).map(t =>
       `<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;margin:2px">${esc(t)}</span>`
     ).join('');
@@ -619,8 +648,11 @@ async function shopProducts() {
         <h3>${esc(p.title)}</h3>
         ${tags ? `<div style="margin:4px 0">${tags}</div>` : ''}
         <div class="meta">الوزن: ${p.weight} جم • عيار ${p.karat}</div>
-        <div class="meta">المصنعية: ${p.making_charge_value} ${p.making_charge_type === 'per_gram' ? '/جم' : p.making_charge_type === 'percent' ? '%' : 'ثابت'}</div>
-        <div class="price">${mn(price)} ر.س</div>
+        <div style="background:#faf5e6;border-radius:8px;padding:8px;margin:8px 0;font-size:12px">
+          <div style="display:flex;justify-content:space-between"><span style="color:#64748b">قيمة الذهب:</span><strong style="color:#c9a227">${mn(goldValue)}</strong></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#64748b">الأجور:</span><strong style="color:#2563eb">${mn(making)}</strong></div>
+          <div style="display:flex;justify-content:space-between;border-top:1px dashed #c9a227;margin-top:4px;padding-top:4px"><strong>الإجمالي:</strong><strong style="color:#16a34a">${mn(price)}</strong></div>
+        </div>
         ${p.status === 'hidden' ? '<span class="bd w">مخفي</span>' : '<span class="bd o">معروض</span>'}
         <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
           <button class="b sm p" onclick="shopEditProduct('${p.id}')">✏️ تعديل</button>
@@ -633,32 +665,55 @@ async function shopProducts() {
 
   $('#shopContent').innerHTML = `
     <div class="panel">
+      <h2>💰 أسعار الذهب اليوم</h2>
+      <p style="color:#64748b;font-size:12.5px;margin-bottom:12px">الأسعار التي حدّثها المدير — تُحدَّث تلقائياً في كل المنتجات</p>
+      <div class="sts">${goldPricesBar}</div>
+    </div>
+
+    <div class="panel">
       <h2>📊 إحصائيات المخزون</h2>
       <div class="sts">
         <div class="st"><div class="l">إجمالي القطع</div><div class="v b">${stats.total}</div></div>
         <div class="st"><div class="l">إجمالي الوزن</div><div class="v">${stats.totalWeight.toFixed(2)} جم</div></div>
-        <div class="st"><div class="l">القيمة الكلية</div><div class="v g">${mn(stats.totalValue)}</div></div>
-        <div class="st"><div class="l">عدد التصنيفات</div><div class="v y">${Object.keys(stats.byTag).length}</div></div>
+      </div>
+
+      <h3 style="font-size:13.5px;margin:14px 0 8px;color:#c9a227">🟡 قيمة الذهب الخام (بدون أجور)</h3>
+      <div class="sts">
+        <div class="st" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fbbf24">
+          <div class="l" style="color:#92400e">قيمة الذهب فقط</div>
+          <div class="v" style="color:#c9a227;font-size:24px">${mn(stats.totalGoldValue)} ر.س</div>
+        </div>
+        <div class="st" style="background:#eff6ff;border-color:#93c5fd">
+          <div class="l" style="color:#1e40af">إجمالي الأجور</div>
+          <div class="v" style="color:#2563eb;font-size:24px">${mn(stats.totalMaking)} ر.س</div>
+        </div>
+        <div class="st" style="background:#f0fdf4;border-color:#86efac">
+          <div class="l" style="color:#166534">الإجمالي الكامل</div>
+          <div class="v" style="color:#16a34a;font-size:24px">${mn(stats.totalFullValue)} ر.س</div>
+        </div>
       </div>
 
       ${karatRows ? `
-      <h3 style="font-size:14px;margin:16px 0 8px;color:#c9a227">تفصيل حسب العيار</h3>
+      <h3 style="font-size:13.5px;margin:16px 0 8px;color:#c9a227">تفصيل حسب العيار</h3>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>العيار</th><th>عدد القطع</th><th>الوزن</th><th>القيمة</th></tr></thead>
+          <thead><tr>
+            <th>العيار</th><th>عدد</th><th>الوزن</th>
+            <th>قيمة الذهب</th><th>الأجور</th><th>الإجمالي</th>
+          </tr></thead>
           <tbody>${karatRows}</tbody>
         </table>
       </div>` : ''}
 
-      ${tagChips ? `<h3 style="font-size:14px;margin:16px 0 8px;color:#c9a227">التصنيفات</h3><div>${tagChips}</div>` : ''}
+      ${tagChips ? `<h3 style="font-size:13.5px;margin:16px 0 8px;color:#c9a227">التصنيفات</h3><div>${tagChips}</div>` : ''}
     </div>
 
     <div class="panel">
       <h2>📦 منتجاتك (${products.length})</h2>
       <p style="color:#64748b;font-size:13px;margin-bottom:14px">
-        رابط محلك العام: <a href="#shop=${esc(session.shop.slug)}" target="_blank" style="color:#c9a227;font-weight:700">${location.origin}/#shop=${esc(session.shop.slug)}</a>
+        رابط محلك: <a href="#shop=${esc(session.shop.slug)}" target="_blank" style="color:#c9a227;font-weight:700">${location.origin}/#shop=${esc(session.shop.slug)}</a>
       </p>
-      ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا منتجات بعد. أضف منتجك الأول.</div>'}
+      ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا منتجات بعد</div>'}
     </div>
   `;
 }
@@ -838,28 +893,30 @@ async function loadPublicShop(slug) {
 
   renderPublicShop();
 }
-
 function renderPublicShop() {
   const shop = session.publicShop;
   const products = publicProducts;
 
-  // استخراج كل التصنيفات
   const allTags = [...new Set(products.flatMap(p => p.tags || []))].sort((a, b) => a.localeCompare(b, 'ar'));
+  const filtered = publicFilter ? products.filter(p => (p.tags || []).includes(publicFilter)) : products;
 
-  // فلترة
-  const filtered = publicFilter
-    ? products.filter(p => (p.tags || []).includes(publicFilter))
-    : products;
-
-  // بطاقات
   let cards = '';
   filtered.forEach(p => {
-    const price = calcPrice(p);
+    const w = parseFloat(p.weight) || 0;
+    const gp = session.prices[p.karat] || 0;
+    const goldValue = gp * w;
+    let making = 0;
+    if (p.making_charge_type === 'per_gram') making = parseFloat(p.making_charge_value || 0) * w;
+    else if (p.making_charge_type === 'percent') making = goldValue * parseFloat(p.making_charge_value || 0) / 100;
+    else making = parseFloat(p.making_charge_value || 0);
+    const total = goldValue + making;
+
     const tags = (p.tags || []).map(t =>
       `<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;margin:2px">${esc(t)}</span>`
     ).join('');
+
     const waLink = 'https://wa.me/' + (shop.whatsapp || '').replace(/\D/g, '') + '?text=' +
-      encodeURIComponent(`مرحباً، أرغب بطلب:\n${p.title}\nالوزن: ${p.weight} جم\nالعيار: ${p.karat}\nالسعر: ${price.toFixed(2)} ر.س`);
+      encodeURIComponent(`مرحباً، أرغب بطلب:\n${p.title}\nالوزن: ${p.weight} جم\nالعيار: ${p.karat}\nالسعر: ${total.toFixed(2)} ر.س`);
 
     cards += `
       <div class="card">
@@ -867,14 +924,39 @@ function renderPublicShop() {
         <h3>${esc(p.title)}</h3>
         ${tags ? `<div style="margin:4px 0">${tags}</div>` : ''}
         ${p.description ? `<div class="meta">${esc(p.description)}</div>` : ''}
-        <div class="meta">الوزن: ${p.weight} جم • عيار ${p.karat}</div>
-        <div class="price">${mn(price)} ر.س</div>
-        <a class="wa" href="${waLink}" target="_blank">📱 اطلب عبر واتساب</a>
+
+        <div style="background:#f8fafc;border-radius:8px;padding:10px;margin:10px 0;font-size:12.5px;border:1px solid #e2e8f0">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:#64748b">الوزن:</span>
+            <strong>${p.weight} جم</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:#64748b">العيار:</span>
+            <strong>${p.karat}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:#64748b">سعر الجرام:</span>
+            <strong style="color:#c9a227">${mn(gp)}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;padding-top:4px;border-top:1px dashed #cbd5e1">
+            <span style="color:#64748b">قيمة الذهب:</span>
+            <strong style="color:#c9a227">${mn(goldValue)} ر.س</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="color:#64748b">الأجور:</span>
+            <strong style="color:#2563eb">${mn(making)} ر.س</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:2px solid #16a34a;font-size:15px">
+            <strong>الإجمالي:</strong>
+            <strong style="color:#16a34a">${mn(total)} ر.س</strong>
+          </div>
+        </div>
+
+        <a class="wa" href="${waLink}" target="_blank" style="display:block;text-align:center">📱 اطلب عبر واتساب</a>
       </div>
     `;
   });
 
-  // شريط الفلاتر
   const filterBar = allTags.length ? `
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">
       <div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:8px">🔍 تصفية حسب التصنيف:</div>
@@ -922,7 +1004,6 @@ function renderPublicShop() {
   `;
   runCalc();
 }
-
 function filterPublic(tag) {
   publicFilter = tag;
   renderPublicShop();
@@ -939,14 +1020,28 @@ function runCalc() {
   else if (t === 'percent') making = base * m / 100;
   else making = m;
   const total = base + making;
+
   $('#calcResult').innerHTML = `
-    سعر الجرام: ${mn(gp)} ر.س<br>
-    قيمة الذهب: ${mn(base)} ر.س<br>
-    المصنعية: ${mn(making)} ر.س<br>
-    <div style="font-size:22px;margin-top:6px">الإجمالي: ${mn(total)} ر.س</div>
+    <div style="background:#fff;border-radius:8px;padding:14px;text-align:right;font-size:14px">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #e2e8f0">
+        <span style="color:#64748b">سعر جرام عيار ${k}:</span>
+        <strong style="color:#c9a227">${mn(gp)} ر.س</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #e2e8f0">
+        <span style="color:#64748b">قيمة الذهب (${w} × ${mn(gp)}):</span>
+        <strong style="color:#c9a227">${mn(base)} ر.س</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed #e2e8f0">
+        <span style="color:#64748b">الأجور (المصنعية):</span>
+        <strong style="color:#2563eb">${mn(making)} ر.س</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;margin-top:6px;border-top:3px solid #c9a227;font-size:18px">
+        <strong>الإجمالي:</strong>
+        <strong style="color:#c9a227">${mn(total)} ر.س</strong>
+      </div>
+    </div>
   `;
 }
-
 function showPublicError(msg) {
   $('#pubShopName').textContent = '💎 منصة الذهب';
   $('#pubWhatsapp').style.display = 'none';
