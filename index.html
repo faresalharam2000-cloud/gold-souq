@@ -346,7 +346,6 @@ async function savePrices() {
     alert('✅ تم تحديث الأسعار');
   } catch (e) { alert('خطأ: ' + e.message); }
 }
-
 function adminShops() {
   let rows = '';
   adminList.forEach((s, i) => {
@@ -355,19 +354,29 @@ function adminShops() {
     let statusBadge = s.status === 'suspended' ? '<span class="bd r">موقوف</span>' :
                       expired ? '<span class="bd w">منتهي</span>' :
                       '<span class="bd o">نشط</span>';
-    let daysBadge = days !== null ? (days < 0 ? '<span class="bd r">منتهي</span>' : days <= 3 ? '<span class="bd r">' + days + ' يوم</span>' : days <= 7 ? '<span class="bd w">' + days + ' يوم</span>' : '<span class="bd o">' + days + ' يوم</span>') : '—';
+    let daysBadge = days !== null
+      ? (days < 0 ? '<span class="bd r">منتهي</span>'
+         : days <= 3 ? '<span class="bd r">' + days + ' يوم</span>'
+         : days <= 7 ? '<span class="bd w">' + days + ' يوم</span>'
+         : '<span class="bd o">' + days + ' يوم</span>')
+      : '—';
+
+    // عرض كلمة السر مع زر نسخ
+    const pwHtml = '<span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;font-size:12px" onclick="copyToClipboard(\'' + esc(s.password).replace(/'/g, "\\'") + '\', this)" title="اضغط للنسخ">' + esc(s.password) + '</span>';
+
     rows += `<tr>
       <td>${i+1}</td>
       <td><strong>${esc(s.name)}</strong><div style="font-size:11px;color:#64748b">${esc(s.owner_name || '—')}</div></td>
       <td><a href="#shop=${esc(s.slug)}" target="_blank" style="color:#c9a227;font-weight:700">/${esc(s.slug)}</a></td>
       <td style="direction:ltr;text-align:right">${esc(s.whatsapp || '—')}</td>
+      <td>${pwHtml}</td>
       <td>${daysBadge}</td>
       <td>${statusBadge}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           <button class="b sm w" onclick="extendShop('${s.id}')">➕ تمديد</button>
-          <button class="b sm ${s.status === 'active' ? 'd' : 's'}" onclick="toggleShop('${s.id}')">${s.status === 'active' ? '⏸️' : '▶️'}</button>
-          <button class="b sm" onclick="resetShopPass('${s.id}')">🔑</button>
+          <button class="b sm ${s.status === 'active' ? 'd' : 's'}" onclick="toggleShop('${s.id}')">${s.status === 'active' ? '⏸️ إيقاف' : '▶️ تفعيل'}</button>
+          <button class="b sm" onclick="resetShopPass('${s.id}')">🔑 تغيير</button>
           <button class="b sm d" onclick="deleteShop('${s.id}')">🗑️</button>
         </div>
       </td>
@@ -376,16 +385,19 @@ function adminShops() {
   $('#adminContent').innerHTML = `
     <div class="panel">
       <h2>🏪 المحلات (${adminList.length})</h2>
+      <p style="color:#64748b;font-size:12.5px;margin-bottom:14px">💡 اضغط على كلمة السر لنسخها</p>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>#</th><th>المحل</th><th>الرابط</th><th>واتساب</th><th>المتبقي</th><th>الحالة</th><th>إجراءات</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="7" class="empty">لا محلات بعد</td></tr>'}</tbody>
+          <thead><tr>
+            <th>#</th><th>المحل</th><th>الرابط</th><th>واتساب</th>
+            <th>كلمة السر</th><th>المتبقي</th><th>الحالة</th><th>إجراءات</th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="8" class="empty">لا محلات بعد</td></tr>'}</tbody>
         </table>
       </div>
     </div>
   `;
 }
-
 function adminAddShop() {
   $('#adminContent').innerHTML = `
     <div class="panel">
@@ -436,48 +448,79 @@ async function createShop() {
     else alert('خطأ: ' + e.message);
   }
 }
+async function extendShop(id) {
+  const s = adminList.find(x => x.id === id);
+  if (!s) return alert('المحل غير موجود');
 
-function extendShop(id) {
-  const s = adminList.find(x => x.id === id); if (!s) return;
   const days = prompt('كم يوم تريد إضافة؟', '30');
-  if (!days) return;
-  const n = parseInt(days); if (isNaN(n) || n < 1) return alert('رقم غير صحيح');
-  const current = s.expires_at && new Date(s.expires_at) > new Date() ? new Date(s.expires_at) : new Date();
+  if (days === null) return; // المستخدم ألغى
+  const n = parseInt(days);
+  if (isNaN(n) || n < 1) return alert('رقم غير صحيح');
+
+  const current = (s.expires_at && new Date(s.expires_at) > new Date())
+    ? new Date(s.expires_at)
+    : new Date();
   current.setDate(current.getDate() + n);
-  db.from('shops').update({ expires_at: current.toISOString(), status: 'active' }).eq('id', id).then(async r => {
-    if (r.error) return alert('خطأ: ' + r.error.message);
-    await adminLoadList(); adminTab('shops');
+
+  try {
+    await sqlQuery(
+      'UPDATE shops SET expires_at = $1, status = $2 WHERE id = $3',
+      [current.toISOString(), 'active', id]
+    );
+    await adminLoadList();
+    adminTab('shops');
     alert('✅ تم التمديد حتى ' + current.toLocaleDateString('ar'));
-  });
+  } catch (e) {
+    alert('❌ خطأ في التمديد: ' + e.message);
+  }
 }
-
 async function toggleShop(id) {
-  const s = adminList.find(x => x.id === id); if (!s) return;
+  const s = adminList.find(x => x.id === id);
+  if (!s) return alert('المحل غير موجود');
+
   const ns = s.status === 'active' ? 'suspended' : 'active';
-  const r = await db.from('shops').update({ status: ns }).eq('id', id);
-  if (r.error) return alert('خطأ');
-  await adminLoadList(); adminTab('shops');
-}
+  const label = ns === 'suspended' ? 'إيقاف' : 'تفعيل';
+  if (!confirm(label + ' حساب "' + s.name + '"؟')) return;
 
-function resetShopPass(id) {
-  const np = prompt('كلمة المرور الجديدة:', '');
-  if (!np || np.length < 4) return alert('4 أحرف على الأقل');
-  db.from('shops').update({ password: np }).eq('id', id).then(async r => {
-    if (r.error) return alert('خطأ');
-    await adminLoadList(); adminTab('shops');
-    alert('✅ تم تغيير كلمة المرور');
-  });
+  try {
+    await sqlQuery('UPDATE shops SET status = $1 WHERE id = $2', [ns, id]);
+    await adminLoadList();
+    adminTab('shops');
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+  }
 }
+async function resetShopPass(id) {
+  const s = adminList.find(x => x.id === id);
+  if (!s) return;
+  const np = prompt('كلمة المرور الجديدة لـ "' + s.name + '":', s.password || '');
+  if (!np || np.length < 4) return alert('كلمة المرور 4 أحرف على الأقل');
 
+  try {
+    await sqlQuery('UPDATE shops SET password = $1 WHERE id = $2', [np, id]);
+    await adminLoadList();
+    adminTab('shops');
+    alert('✅ تم تغيير كلمة المرور إلى: ' + np);
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+  }
+}
 async function deleteShop(id) {
-  const s = adminList.find(x => x.id === id); if (!s) return;
+  const s = adminList.find(x => x.id === id);
+  if (!s) return;
   if (!confirm('حذف "' + s.name + '" نهائياً؟ سيُحذف كل شيء!')) return;
   if (!confirm('تأكيد أخير؟')) return;
-  const r = await db.from('shops').delete().eq('id', id);
-  if (r.error) return alert('خطأ');
-  await adminLoadList(); adminTab('shops');
-}
 
+  try {
+    await sqlQuery('DELETE FROM products WHERE shop_id = $1', [id]);
+    await sqlQuery('DELETE FROM shops WHERE id = $1', [id]);
+    await adminLoadList();
+    adminTab('shops');
+    alert('✅ تم الحذف');
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+  }
+}
 function adminSettings() {
   $('#adminContent').innerHTML = `
     <div class="panel">
@@ -777,7 +820,29 @@ async function route() {
   }
   return false;
 }
-
+function copyToClipboard(text, el) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = el.textContent;
+    el.textContent = '✅ تم النسخ';
+    el.style.background = '#f0fdf4';
+    el.style.color = '#16a34a';
+    setTimeout(() => {
+      el.textContent = orig;
+      el.style.background = '#f1f5f9';
+      el.style.color = '';
+    }, 1000);
+  }).catch(() => {
+    // بديل لو لم يعمل clipboard
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    el.textContent = '✅ تم النسخ';
+    setTimeout(() => { el.textContent = text; }, 1000);
+  });
+}
 async function boot() {
   const routed = await route();
   if (routed) return;
@@ -819,7 +884,8 @@ Object.assign(window, {
   adminTab, adminRefresh, adminPrices, savePrices, adminShops, adminAddShop, createShop,
   extendShop, toggleShop, resetShopPass, deleteShop, adminSettings, changeAdminPass,
   shopTab, shopRefresh, shopProducts, shopAddProduct, saveProduct, toggleProduct, deleteProduct,
-  copyShopLink, shopSettings, shopChangePass, runCalc
+  copyShopLink, shopSettings, shopChangePass, runCalc,
+  copyToClipboard   // ← أضف هذا
 });
 
 boot();
