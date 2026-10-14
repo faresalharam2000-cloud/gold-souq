@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>منصة الذهب</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Tahoma,sans-serif;background:#f8fafc;line-height:1.5;font-size:14px;color:#1e293b}
+.h{display:none!important}
+button{cursor:pointer;font-family:inherit}
+input,select,textarea{font-family:inherit;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:13.5px;width:100%;outline:none;background:#fff}
+.b{border:1px solid #cbd5e1;background:#fff;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;color:#334155}
+.b.p{background:#c9a227;border-color:#c9a227;color:#fff}
+.b.p:hover{background:#b08f1f}
+.b.s{background:#16a34a;border-color:#16a34a;color:#fff}
+.b.d{background:#fff;border-color:#fecaca;color:#dc2626}
+.b.w{background:#fff;border-color:#fde68a;color:#b45309}
+.b.sm{padding:4px 9px;font-size:12px}
+.f{margin-bottom:12px}
+.f label{display:block;font-size:12.5px;font-weight:600;margin-bottom:5px;color:#334155}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.scr{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;background:linear-gradient(135deg,#1e293b,#334155,#c9a227)}
+.crd{background:#fff;border-radius:14px;padding:26px;width:100%;max-width:420px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.crd h1{font-size:22px;text-align:center;margin:6px 0 18px;color:#1e293b}
+.logo{font-size:42px;text-align:center;margin-bottom:4px}
+.tb2{display:flex;background:#f1f5f9;border-radius:9px;padding:4px;margin-bottom:18px}
+.tb2 button{flex:1;border:0;background:transparent;padding:9px;border-radius:6px;font-weight:700;color:#64748b;font-size:13px}
+.tb2 button.on{background:#fff;color:#c9a227;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.msg{margin-top:10px;text-align:center;font-size:13px;min-height:18px;color:#dc2626;font-weight:600}
+header{background:#fff;border-bottom:1px solid #e2e8f0;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.br{font-weight:800;font-size:15px;color:#1e293b}
+.nav{display:flex;gap:4px;padding:10px 18px 0;flex-wrap:wrap;background:#fff;border-bottom:1px solid #e2e8f0}
+.nav button{border:0;background:transparent;padding:9px 14px;border-radius:8px 8px 0 0;font-size:13px;font-weight:700;color:#64748b;border-bottom:3px solid transparent}
+.nav button.on{color:#c9a227;border-bottom-color:#c9a227}
+main{padding:20px 18px 60px;max-width:1200px;margin:0 auto}
+.sts{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.st{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px}
+.st .l{font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase}
+.st .v{font-size:22px;font-weight:800;margin-top:3px;color:#1e293b}
+.v.g{color:#16a34a}.v.r{color:#dc2626}.v.b{color:#2563eb}.v.y{color:#b45309}
+.panel{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:16px}
+.panel h2{font-size:16px;margin-bottom:14px;color:#1e293b}
+.panel h3{font-size:14px;margin-bottom:12px;color:#c9a227;font-weight:700}
+.tbl-wrap{overflow-x:auto;background:#fff;border:1px solid #e2e8f0;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}
+th{background:#f8fafc;text-align:right;padding:10px 12px;font-size:11.5px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
+.bd{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block}
+.bd.o{background:#f0fdf4;color:#16a34a}
+.bd.r{background:#fef2f2;color:#dc2626}
+.bd.w{background:#fffbeb;color:#b45309}
+.bd.i{background:#eff6ff;color:#2563eb}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;transition:.15s}
+.card:hover{box-shadow:0 8px 24px rgba(0,0,0,.06);transform:translateY(-2px)}
+.card img{width:100%;height:180px;object-fit:cover;border-radius:8px;background:#f1f5f9;margin-bottom:10px}
+.card h3{font-size:14px;margin-bottom:6px;color:#1e293b}
+.card .price{font-size:18px;font-weight:800;color:#c9a227;margin:8px 0}
+.card .meta{font-size:12px;color:#64748b;margin:2px 0}
+.wa{display:inline-block;background:#25D366;color:#fff;padding:8px 14px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;margin-top:8px}
+.calc{background:linear-gradient(135deg,#fffbeb,#fef3c7);border:2px solid #fbbf24;border-radius:12px;padding:18px;margin-bottom:16px}
+.calc h2{font-size:16px;color:#92400e;margin-bottom:12px}
+.calc .result{background:#fff;border-radius:8px;padding:12px;margin-top:10px;font-size:15px;font-weight:800;color:#c9a227;text-align:center}
+.empty{text-align:center;color:#64748b;padding:40px;font-size:14px}
+.ttl{text-align:center;margin-bottom:20px}
+.ttl h1{font-size:26px;color:#1e293b}
+.ttl p{color:#64748b;margin-top:4px}
+@media(max-width:600px){.g2{grid-template-columns:1fr}.crd{padding:20px}.card img{height:150px}}
+</style>
+</head>
+<body>
+
+<!-- شاشة تسجيل الدخول -->
+<div id="authScreen" class="scr">
+  <div class="crd">
+    <div class="logo">💎</div>
+    <h1>منصة الذهب</h1>
+    <div class="tb2">
+      <button class="on" id="tbShop" onclick="switchAuth('shop')">صائغ</button>
+      <button id="tbAdmin" onclick="switchAuth('admin')">مدير</button>
+    </div>
+
+    <div id="shopForm">
+      <div class="f"><label>رابط المحل (slug)</label><input id="lSlug" placeholder="مثال: riyadh-gold"></div>
+      <div class="f"><label>كلمة المرور</label><input id="lPass" type="password"></div>
+      <button class="b p" style="width:100%;padding:12px;font-size:14px" onclick="doShopLogin()">دخول</button>
+    </div>
+
+    <div id="adminForm" class="h">
+      <div class="f"><label>كلمة سر الأدمن</label><input id="aPass" type="password"></div>
+      <button class="b p" style="width:100%;padding:12px;font-size:14px" onclick="doAdminLogin()">دخول</button>
+    </div>
+
+    <div id="authMsg" class="msg"></div>
+  </div>
+</div>
+
+<!-- شاشة الأدمن -->
+<div id="adminScreen" class="h">
+  <header>
+    <div class="br">👑 لوحة المدير</div>
+    <div>
+      <button class="b sm" onclick="adminRefresh()">🔄</button>
+      <button class="b sm d" onclick="adminLogout()">خروج</button>
+    </div>
+  </header>
+  <nav class="nav">
+    <button data-tab="prices" class="on" onclick="adminTab('prices')">💰 أسعار الذهب</button>
+    <button data-tab="shops" onclick="adminTab('shops')">🏪 المحلات</button>
+    <button data-tab="addShop" onclick="adminTab('addShop')">➕ إضافة محل</button>
+    <button data-tab="settings" onclick="adminTab('settings')">⚙️ الإعدادات</button>
+  </nav>
+  <main id="adminContent"></main>
+</div>
+
+<!-- شاشة الصائغ -->
+<div id="shopScreen" class="h">
+  <header>
+    <div class="br">💎 <span id="shopTitle"></span></div>
+    <div>
+      <button class="b sm" onclick="copyShopLink()">🔗 نسخ الرابط</button>
+      <button class="b sm" onclick="shopRefresh()">🔄</button>
+      <button class="b sm d" onclick="shopLogout()">خروج</button>
+    </div>
+  </header>
+  <nav class="nav">
+    <button data-tab="products" class="on" onclick="shopTab('products')">📦 المنتجات</button>
+    <button data-tab="addProduct" onclick="shopTab('addProduct')">➕ إضافة منتج</button>
+    <button data-tab="settings" onclick="shopTab('settings')">⚙️ الإعدادات</button>
+  </nav>
+  <main id="shopContent"></main>
+</div>
+
+<!-- شاشة المحل العامة (للزبون) -->
+<div id="publicScreen" class="h">
+  <header>
+    <div class="br" id="pubShopName">💎</div>
+    <div>
+      <a id="pubWhatsapp" href="#" target="_blank" class="wa" style="margin:0">📱 واتساب</a>
+    </div>
+  </header>
+  <main id="publicContent"></main>
+</div>
+
+<script>
+// ==================== SQL Shim ====================
+const API = '/api/db';
+
+async function sqlQuery(query, params = []) {
+  const r = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sql: query, params })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'خطأ في الاستعلام');
+  return j.data;
+}
+
+class QB {
+  constructor(t) { this.t = t; this.f = []; this.mode = 'select'; this.cols = '*'; this.data = null; this.ord = null; this.lim = null; this.single_ = false; }
+  select(c='*') { if (this.mode==='select') this.cols = c; else this.ret = true; return this; }
+  insert(d) { this.mode='insert'; this.data = Array.isArray(d) ? d : [d]; return this; }
+  update(d) { this.mode='update'; this.data=d; return this; }
+  delete() { this.mode='delete'; return this; }
+  eq(c,v) { this.f.push({c,op:'=',v}); return this; }
+  lt(c,v) { this.f.push({c,op:'<',v}); return this; }
+  order(c,o={}) { this.ord={c,asc:o.ascending!==false}; return this; }
+  limit(n) { this.lim=n; return this; }
+  single() { this.single_=true; return this; }
+  _q(s) { return '"' + s.replace(/"/g,'""') + '"'; }
+  _build() {
+    const p = [], q = this._q(this.t);
+    if (this.mode === 'select') {
+      let s = 'SELECT ' + this.cols + ' FROM ' + q;
+      if (this.f.length) { s += ' WHERE ' + this.f.map(x => { p.push(x.v); return this._q(x.c) + ' ' + x.op + ' $' + p.length; }).join(' AND '); }
+      if (this.ord) s += ' ORDER BY ' + this._q(this.ord.c) + (this.ord.asc ? ' ASC' : ' DESC');
+      if (this.lim) s += ' LIMIT ' + this.lim;
+      return { s, p };
+    }
+    if (this.mode === 'insert') {
+      const cols = Object.keys(this.data[0]);
+      const vals = this.data.map(r => '(' + cols.map(c => { p.push(r[c]); return '$' + p.length; }).join(',') + ')').join(',');
+      let s = 'INSERT INTO ' + q + ' (' + cols.map(c => this._q(c)).join(',') + ') VALUES ' + vals + ' RETURNING *';
+      return { s, p };
+    }
+    if (this.mode === 'update') {
+      const set = Object.keys(this.data).map(k => { p.push(this.data[k]); return this._q(k) + ' = $' + p.length; }).join(',');
+      let s = 'UPDATE ' + q + ' SET ' + set;
+      if (this.f.length) s += ' WHERE ' + this.f.map(x => { p.push(x.v); return this._q(x.c) + ' ' + x.op + ' $' + p.length; }).join(' AND ');
+      s += ' RETURNING *';
+      return { s, p };
+    }
+    if (this.mode === 'delete') {
+      let s = 'DELETE FROM ' + q;
+      if (this.f.length) s += ' WHERE ' + this.f.map(x => { p.push(x.v); return this._q(x.c) + ' ' + x.op + ' $' + p.length; }).join(' AND ');
+      s += ' RETURNING *';
+      return { s, p };
+    }
+  }
+  async _run() {
+    try {
+      const { s, p } = this._build();
+      let rows = await sqlQuery(s, p);
+      if (!Array.isArray(rows)) rows = rows ? [rows] : [];
+      let data = rows, error = null;
+      if (this.single_) {
+        if (data.length === 0) { error = { message: 'no rows' }; data = null; }
+        else if (data.length > 1) { error = { message: 'multiple rows' }; data = null; }
+        else data = data[0];
+      }
+      return { data, error };
+    } catch (e) {
+      return { data: null, error: { message: e.message } };
+    }
+  }
+  then(r, j) { return this._run().then(r, j); }
+}
+const db = { from: t => new QB(t) };
+
+// ==================== Utilities ====================
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const mn = n => (Number(n)||0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+const fT = t => t ? String(t).slice(0,16).replace('T',' ') : '';
+const uid = () => crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2,9);
+
+// ==================== State ====================
+let session = { admin: null, shop: null, prices: {}, publicShop: null };
+let adminList = [];
+
+// ==================== Auth ====================
+function switchAuth(mode) {
+  $('#tbShop').classList.toggle('on', mode === 'shop');
+  $('#tbAdmin').classList.toggle('on', mode === 'admin');
+  $('#shopForm').classList.toggle('h', mode !== 'shop');
+  $('#adminForm').classList.toggle('h', mode !== 'admin');
+  $('#authMsg').textContent = '';
+}
+function authMsg(m) { $('#authMsg').textContent = m; }
+
+async function doShopLogin() {
+  const slug = $('#lSlug').value.trim().toLowerCase();
+  const pass = $('#lPass').value;
+  if (!slug || !pass) return authMsg('املأ الحقول');
+  try {
+    const r = await db.from('shops').select('*').eq('slug', slug).single();
+    if (r.error || !r.data) return authMsg('رابط المحل غير موجود');
+    const shop = r.data;
+    if (shop.password !== pass) return authMsg('كلمة المرور غير صحيحة');
+    if (shop.status !== 'active') return authMsg('الحساب موقوف');
+    if (shop.expires_at && new Date(shop.expires_at) < new Date()) return authMsg('انتهت صلاحية الحساب. تواصل مع المدير.');
+    session.shop = shop;
+    localStorage.setItem('gold_shop_session', JSON.stringify({ id: shop.id, slug: shop.slug }));
+    await loadPrices();
+    showShopScreen();
+  } catch (e) { authMsg('خطأ: ' + e.message); }
+}
+
+async function doAdminLogin() {
+  const pass = $('#aPass').value;
+  if (!pass) return authMsg('أدخل كلمة المرور');
+  try {
+    const r = await db.from('config').select('*').eq('key', 'admin_password').single();
+    if (r.error || !r.data) return authMsg('خطأ في الإعدادات');
+    if (r.data.value !== pass) return authMsg('كلمة مرور الأدمن غير صحيحة');
+    session.admin = true;
+    sessionStorage.setItem('gold_admin', '1');
+    await loadPrices();
+    await adminLoadList();
+    showAdminScreen();
+  } catch (e) { authMsg('خطأ: ' + e.message); }
+}
+
+async function loadPrices() {
+  const r = await db.from('gold_prices').select('*');
+  if (!r.error && r.data) {
+    session.prices = Object.fromEntries(r.data.map(p => [p.karat, +p.price_per_gram]));
+  }
+}
+
+function adminLogout() { session.admin = null; sessionStorage.removeItem('gold_admin'); location.hash = ''; location.reload(); }
+function shopLogout() { session.shop = null; localStorage.removeItem('gold_shop_session'); location.reload(); }
+
+// ==================== Screen Control ====================
+function hideAll() {
+  $('#authScreen').classList.add('h');
+  $('#adminScreen').classList.add('h');
+  $('#shopScreen').classList.add('h');
+  $('#publicScreen').classList.add('h');
+}
+function showAdminScreen() { hideAll(); $('#adminScreen').classList.remove('h'); adminTab('prices'); }
+function showShopScreen() { hideAll(); $('#shopScreen').classList.remove('h'); $('#shopTitle').textContent = session.shop.name; shopTab('products'); }
+function showPublicScreen() { hideAll(); $('#publicScreen').classList.remove('h'); }
+
+// ==================== Admin Panel ====================
+async function adminLoadList() {
+  const r = await db.from('shops').select('*').order('created_at', { ascending: false });
+  adminList = r.data || [];
+}
+
+function adminTab(t) {
+  $$('#adminScreen .nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  if (t === 'prices') adminPrices();
+  else if (t === 'shops') adminShops();
+  else if (t === 'addShop') adminAddShop();
+  else if (t === 'settings') adminSettings();
+}
+
+function adminRefresh() { adminLoadList().then(() => adminTab(getActiveAdminTab())); }
+function getActiveAdminTab() { const el = $('#adminScreen .nav button.on'); return el ? el.dataset.tab : 'prices'; }
+
+function adminPrices() {
+  const karats = [24,22,21,18,14];
+  $('#adminContent').innerHTML = `
+    <div class="panel">
+      <h2>💰 أسعار الذهب اليوم (لكل جرام)</h2>
+      <p style="color:#64748b;font-size:13px;margin-bottom:14px">حدّث الأسعار مرة واحدة، وستنعكس على جميع المحلات فوراً.</p>
+      <div class="g2" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+        ${karats.map(k => `
+          <div class="f">
+            <label>عيار ${k}</label>
+            <input type="number" step="0.01" id="price_${k}" value="${session.prices[k] || ''}" placeholder="0.00">
+          </div>
+        `).join('')}
+      </div>
+      <button class="b p" style="padding:11px 24px;font-size:14px" onclick="savePrices()">💾 حفظ الأسعار</button>
+    </div>
+  `;
+}
+
+async function savePrices() {
+  const karats = [24,22,21,18,14];
+  try {
+    for (const k of karats) {
+      const v = parseFloat($('#price_' + k).value);
+      if (isNaN(v) || v <= 0) continue;
+      await sqlQuery(
+        `INSERT INTO gold_prices (karat, price_per_gram, updated_at) VALUES ($1, $2, now())
+         ON CONFLICT (karat) DO UPDATE SET price_per_gram = $2, updated_at = now()`,
+        [k, v]
+      );
+    }
+    await loadPrices();
+    alert('✅ تم تحديث الأسعار');
+  } catch (e) { alert('خطأ: ' + e.message); }
+}
+
+function adminShops() {
+  let rows = '';
+  adminList.forEach((s, i) => {
+    const expired = s.expires_at && new Date(s.expires_at) < new Date();
+    const days = s.expires_at ? Math.ceil((new Date(s.expires_at) - new Date()) / 86400000) : null;
+    let statusBadge = s.status === 'suspended' ? '<span class="bd r">موقوف</span>' :
+                      expired ? '<span class="bd w">منتهي</span>' :
+                      '<span class="bd o">نشط</span>';
+    let daysBadge = days !== null ? (days < 0 ? '<span class="bd r">منتهي</span>' : days <= 3 ? '<span class="bd r">' + days + ' يوم</span>' : days <= 7 ? '<span class="bd w">' + days + ' يوم</span>' : '<span class="bd o">' + days + ' يوم</span>') : '—';
+    rows += `<tr>
+      <td>${i+1}</td>
+      <td><strong>${esc(s.name)}</strong><div style="font-size:11px;color:#64748b">${esc(s.owner_name || '—')}</div></td>
+      <td><a href="#shop=${esc(s.slug)}" target="_blank" style="color:#c9a227;font-weight:700">/${esc(s.slug)}</a></td>
+      <td style="direction:ltr;text-align:right">${esc(s.whatsapp || '—')}</td>
+      <td>${daysBadge}</td>
+      <td>${statusBadge}</td>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="b sm w" onclick="extendShop('${s.id}')">➕ تمديد</button>
+          <button class="b sm ${s.status === 'active' ? 'd' : 's'}" onclick="toggleShop('${s.id}')">${s.status === 'active' ? '⏸️' : '▶️'}</button>
+          <button class="b sm" onclick="resetShopPass('${s.id}')">🔑</button>
+          <button class="b sm d" onclick="deleteShop('${s.id}')">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  });
+  $('#adminContent').innerHTML = `
+    <div class="panel">
+      <h2>🏪 المحلات (${adminList.length})</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>المحل</th><th>الرابط</th><th>واتساب</th><th>المتبقي</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" class="empty">لا محلات بعد</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function adminAddShop() {
+  $('#adminContent').innerHTML = `
+    <div class="panel">
+      <h2>➕ إنشاء حساب صائغ</h2>
+      <div class="g2">
+        <div class="f"><label>اسم المحل *</label><input id="nsName" placeholder="مثال: مجوهرات الفيصل"></div>
+        <div class="f"><label>اسم المالك</label><input id="nsOwner" placeholder="اسم صاحب المحل"></div>
+        <div class="f"><label>الرابط (slug) *</label><input id="nsSlug" placeholder="faisal-gold" pattern="[a-z0-9-]+"></div>
+        <div class="f"><label>كلمة المرور *</label><input id="nsPass" placeholder="4 أحرف على الأقل"></div>
+        <div class="f"><label>رقم واتساب *</label><input id="nsWa" placeholder="966501234567"></div>
+        <div class="f"><label>المدينة</label><input id="nsCity" placeholder="الرياض"></div>
+        <div class="f"><label>المدة (أيام) *</label><input id="nsDays" type="number" value="30" min="1"></div>
+      </div>
+      <button class="b p" style="padding:11px 24px" onclick="createShop()">🚀 إنشاء الحساب</button>
+    </div>
+  `;
+}
+
+async function createShop() {
+  const name = $('#nsName').value.trim();
+  const owner = $('#nsOwner').value.trim();
+  const slug = $('#nsSlug').value.trim().toLowerCase();
+  const pass = $('#nsPass').value;
+  const wa = $('#nsWa').value.trim();
+  const city = $('#nsCity').value.trim();
+  const days = parseInt($('#nsDays').value) || 30;
+
+  if (!name || !slug || !pass || !wa) return alert('املأ الحقول الإجبارية');
+  if (!/^[a-z0-9-]+$/.test(slug)) return alert('الرابط يجب أن يكون حروف إنجليزية صغيرة وأرقام وشُرَط فقط');
+  if (pass.length < 4) return alert('كلمة المرور 4 أحرف على الأقل');
+
+  const exp = new Date(); exp.setDate(exp.getDate() + days);
+
+  try {
+    const r = await db.from('shops').insert({
+      name, owner_name: owner, slug, password: pass, whatsapp: wa, city,
+      expires_at: exp.toISOString(), status: 'active'
+    });
+    if (r.error) throw new Error(r.error.message);
+    alert('✅ تم إنشاء الحساب\n\nالرابط: ' + location.origin + '/#shop=' + slug + '\nكلمة المرور: ' + pass + '\nينتهي: ' + exp.toLocaleDateString('ar'));
+    await adminLoadList();
+    adminTab('shops');
+  } catch (e) {
+    if (e.message.includes('duplicate') || e.message.includes('unique')) alert('الرابط مستخدم من قبل');
+    else alert('خطأ: ' + e.message);
+  }
+}
+
+function extendShop(id) {
+  const s = adminList.find(x => x.id === id); if (!s) return;
+  const days = prompt('كم يوم تريد إضافة؟', '30');
+  if (!days) return;
+  const n = parseInt(days); if (isNaN(n) || n < 1) return alert('رقم غير صحيح');
+  const current = s.expires_at && new Date(s.expires_at) > new Date() ? new Date(s.expires_at) : new Date();
+  current.setDate(current.getDate() + n);
+  db.from('shops').update({ expires_at: current.toISOString(), status: 'active' }).eq('id', id).then(async r => {
+    if (r.error) return alert('خطأ: ' + r.error.message);
+    await adminLoadList(); adminTab('shops');
+    alert('✅ تم التمديد حتى ' + current.toLocaleDateString('ar'));
+  });
+}
+
+async function toggleShop(id) {
+  const s = adminList.find(x => x.id === id); if (!s) return;
+  const ns = s.status === 'active' ? 'suspended' : 'active';
+  const r = await db.from('shops').update({ status: ns }).eq('id', id);
+  if (r.error) return alert('خطأ');
+  await adminLoadList(); adminTab('shops');
+}
+
+function resetShopPass(id) {
+  const np = prompt('كلمة المرور الجديدة:', '');
+  if (!np || np.length < 4) return alert('4 أحرف على الأقل');
+  db.from('shops').update({ password: np }).eq('id', id).then(async r => {
+    if (r.error) return alert('خطأ');
+    await adminLoadList(); adminTab('shops');
+    alert('✅ تم تغيير كلمة المرور');
+  });
+}
+
+async function deleteShop(id) {
+  const s = adminList.find(x => x.id === id); if (!s) return;
+  if (!confirm('حذف "' + s.name + '" نهائياً؟ سيُحذف كل شيء!')) return;
+  if (!confirm('تأكيد أخير؟')) return;
+  const r = await db.from('shops').delete().eq('id', id);
+  if (r.error) return alert('خطأ');
+  await adminLoadList(); adminTab('shops');
+}
+
+function adminSettings() {
+  $('#adminContent').innerHTML = `
+    <div class="panel">
+      <h2>🔑 تغيير كلمة سر الأدمن</h2>
+      <div class="f"><label>كلمة السر الحالية</label><input id="curPass" type="password"></div>
+      <div class="f"><label>كلمة السر الجديدة</label><input id="newPass" type="password" placeholder="4 أحرف على الأقل"></div>
+      <div class="f"><label>تأكيد الجديدة</label><input id="newPass2" type="password"></div>
+      <button class="b p" style="padding:11px 24px" onclick="changeAdminPass()">💾 حفظ</button>
+    </div>
+  `;
+}
+
+async function changeAdminPass() {
+  const cur = $('#curPass').value;
+  const np = $('#newPass').value;
+  const np2 = $('#newPass2').value;
+  if (!cur || !np || !np2) return alert('املأ الحقول');
+  if (np.length < 4) return alert('4 أحرف على الأقل');
+  if (np !== np2) return alert('غير متطابقتين');
+
+  const r = await db.from('config').select('*').eq('key', 'admin_password').single();
+  if (r.error || r.data.value !== cur) return alert('كلمة السر الحالية خطأ');
+
+  const u = await sqlQuery(`UPDATE config SET value = $1, updated_at = now() WHERE key = 'admin_password'`, [np]);
+  alert('✅ تم تغيير كلمة السر');
+  $('#curPass').value = ''; $('#newPass').value = ''; $('#newPass2').value = '';
+}
+
+// ==================== Shop Panel ====================
+async function shopRefresh() { await loadPrices(); shopTab(getActiveShopTab()); }
+function getActiveShopTab() { const el = $('#shopScreen .nav button.on'); return el ? el.dataset.tab : 'products'; }
+
+function shopTab(t) {
+  $$('#shopScreen .nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  if (t === 'products') shopProducts();
+  else if (t === 'addProduct') shopAddProduct();
+  else if (t === 'settings') shopSettings();
+}
+
+async function shopProducts() {
+  const r = await db.from('products').select('*').eq('shop_id', session.shop.id).order('created_at', { ascending: false });
+  const products = r.data || [];
+  let cards = '';
+  products.forEach(p => {
+    const price = calcPrice(p);
+    cards += `
+      <div class="card">
+        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title)}" onerror="this.style.display='none'">` : ''}
+        <h3>${esc(p.title)}</h3>
+        <div class="meta">الوزن: ${p.weight} جم • عيار ${p.karat}</div>
+        <div class="meta">المصنعية: ${p.making_charge_value} ${p.making_charge_type === 'per_gram' ? '/جم' : p.making_charge_type === 'percent' ? '%' : 'ثابت'}</div>
+        <div class="price">${mn(price)} ر.س</div>
+        ${p.status === 'hidden' ? '<span class="bd w">مخفي</span>' : '<span class="bd o">معروض</span>'}
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+          <button class="b sm w" onclick="toggleProduct('${p.id}', '${p.status}')">${p.status === 'available' ? 'إخفاء' : 'إظهار'}</button>
+          <button class="b sm d" onclick="deleteProduct('${p.id}')">حذف</button>
+        </div>
+      </div>
+    `;
+  });
+
+  $('#shopContent').innerHTML = `
+    <div class="panel">
+      <h2>📦 منتجاتك (${products.length})</h2>
+      <p style="color:#64748b;font-size:13px;margin-bottom:14px">
+        رابط محلك العام: <a href="#shop=${esc(session.shop.slug)}" target="_blank" style="color:#c9a227;font-weight:700">${location.origin}/#shop=${esc(session.shop.slug)}</a>
+      </p>
+      ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا منتجات بعد. أضف منتجك الأول.</div>'}
+    </div>
+  `;
+}
+
+function calcPrice(p) {
+  const goldPrice = session.prices[p.karat] || 0;
+  const base = goldPrice * parseFloat(p.weight || 0);
+  let making = 0;
+  if (p.making_charge_type === 'per_gram') making = parseFloat(p.making_charge_value || 0) * parseFloat(p.weight || 0);
+  else if (p.making_charge_type === 'percent') making = base * parseFloat(p.making_charge_value || 0) / 100;
+  else making = parseFloat(p.making_charge_value || 0);
+  return base + making;
+}
+
+function shopAddProduct() {
+  $('#shopContent').innerHTML = `
+    <div class="panel">
+      <h2>➕ إضافة منتج</h2>
+      <div class="f"><label>اسم المنتج *</label><input id="npTitle" placeholder="خاتم ذهب كلاسيكي"></div>
+      <div class="f"><label>الوصف</label><textarea id="npDesc" rows="2" style="font-family:inherit;resize:vertical"></textarea></div>
+      <div class="f"><label>رابط الصورة (اختياري)</label><input id="npImg" placeholder="https://..."></div>
+      <div class="g2">
+        <div class="f"><label>الوزن (جرام) *</label><input id="npWeight" type="number" step="0.001"></div>
+        <div class="f"><label>العيار *</label>
+          <select id="npKarat">
+            <option value="24">24</option>
+            <option value="22">22</option>
+            <option value="21" selected>21</option>
+            <option value="18">18</option>
+            <option value="14">14</option>
+          </select>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="f"><label>نوع المصنعية *</label>
+          <select id="npType">
+            <option value="per_gram">لكل جرام</option>
+            <option value="percent">نسبة %</option>
+            <option value="fixed">مبلغ ثابت</option>
+          </select>
+        </div>
+        <div class="f"><label>قيمة المصنعية *</label><input id="npVal" type="number" step="0.01" value="0"></div>
+      </div>
+      <button class="b p" style="padding:11px 24px" onclick="saveProduct()">💾 حفظ المنتج</button>
+    </div>
+  `;
+}
+
+async function saveProduct() {
+  const title = $('#npTitle').value.trim();
+  const desc = $('#npDesc').value.trim();
+  const img = $('#npImg').value.trim();
+  const weight = parseFloat($('#npWeight').value);
+  const karat = parseInt($('#npKarat').value);
+  const type = $('#npType').value;
+  const val = parseFloat($('#npVal').value) || 0;
+
+  if (!title) return alert('اسم المنتج مطلوب');
+  if (!weight || weight <= 0) return alert('الوزن مطلوب');
+
+  try {
+    const r = await db.from('products').insert({
+      shop_id: session.shop.id, title, description: desc, image_url: img,
+      weight, karat, making_charge_type: type, making_charge_value: val, status: 'available'
+    });
+    if (r.error) throw new Error(r.error.message);
+    alert('✅ تم حفظ المنتج');
+    shopTab('products');
+  } catch (e) { alert('خطأ: ' + e.message); }
+}
+
+async function toggleProduct(id, status) {
+  const ns = status === 'available' ? 'hidden' : 'available';
+  await db.from('products').update({ status: ns }).eq('id', id);
+  shopProducts();
+}
+
+async function deleteProduct(id) {
+  if (!confirm('حذف المنتج؟')) return;
+  await db.from('products').delete().eq('id', id);
+  shopProducts();
+}
+
+function copyShopLink() {
+  const url = location.origin + location.pathname + '#shop=' + session.shop.slug;
+  navigator.clipboard.writeText(url).then(() => alert('✅ تم نسخ الرابط:\n' + url));
+}
+
+function shopSettings() {
+  $('#shopContent').innerHTML = `
+    <div class="panel">
+      <h2>🔑 تغيير كلمة المرور</h2>
+      <div class="f"><label>كلمة المرور الحالية</label><input id="curPass" type="password"></div>
+      <div class="f"><label>الجديدة</label><input id="newPass" type="password"></div>
+      <div class="f"><label>تأكيد الجديدة</label><input id="newPass2" type="password"></div>
+      <button class="b p" style="padding:11px 24px" onclick="shopChangePass()">💾 حفظ</button>
+    </div>
+    <div class="panel">
+      <h2>ℹ️ معلومات حسابك</h2>
+      <p style="font-size:13px;color:#64748b;line-height:2">
+        <strong>الاسم:</strong> ${esc(session.shop.name)}<br>
+        <strong>الرابط:</strong> /${esc(session.shop.slug)}<br>
+        <strong>واتساب:</strong> ${esc(session.shop.whatsapp || '—')}<br>
+        <strong>ينتهي:</strong> ${session.shop.expires_at ? new Date(session.shop.expires_at).toLocaleDateString('ar') : '—'}
+      </p>
+    </div>
+  `;
+}
+
+async function shopChangePass() {
+  const cur = $('#curPass').value;
+  const np = $('#newPass').value;
+  const np2 = $('#newPass2').value;
+  if (cur !== session.shop.password) return alert('كلمة السر الحالية خطأ');
+  if (np.length < 4) return alert('4 أحرف على الأقل');
+  if (np !== np2) return alert('غير متطابقتين');
+  const r = await db.from('shops').update({ password: np }).eq('id', session.shop.id);
+  if (r.error) return alert('خطأ');
+  session.shop.password = np;
+  alert('✅ تم التغيير');
+  $('#curPass').value = ''; $('#newPass').value = ''; $('#newPass2').value = '';
+}
+
+// ==================== Public Shop View ====================
+async function loadPublicShop(slug) {
+  const r = await db.from('shops').select('*').eq('slug', slug).single();
+  if (r.error || !r.data) return showPublicError('المحل غير موجود');
+  const shop = r.data;
+  if (shop.status !== 'active') return showPublicError('الحساب موقوف حالياً');
+  if (shop.expires_at && new Date(shop.expires_at) < new Date()) return showPublicError('انتهت صلاحية هذا المحل');
+
+  await loadPrices();
+  const pr = await db.from('products').select('*').eq('shop_id', shop.id).order('created_at', { ascending: false });
+  const products = (pr.data || []).filter(p => p.status === 'available');
+
+  session.publicShop = shop;
+  $('#pubShopName').textContent = '💎 ' + shop.name + (shop.city ? ' — ' + shop.city : '');
+  const waMsg = encodeURIComponent('مرحباً، أريد الاستفسار عن منتجاتكم');
+  $('#pubWhatsapp').href = 'https://wa.me/' + (shop.whatsapp || '').replace(/\D/g, '') + '?text=' + waMsg;
+
+  let cards = '';
+  products.forEach(p => {
+    const price = calcPrice(p);
+    const waLink = 'https://wa.me/' + (shop.whatsapp || '').replace(/\D/g, '') + '?text=' +
+      encodeURIComponent(`مرحباً، أرغب بطلب:\n${p.title}\nالوزن: ${p.weight} جم\nالعيار: ${p.karat}\nالسعر: ${price.toFixed(2)} ر.س`);
+    cards += `
+      <div class="card">
+        ${p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.title)}" onerror="this.style.display='none'">` : ''}
+        <h3>${esc(p.title)}</h3>
+        ${p.description ? `<div class="meta">${esc(p.description)}</div>` : ''}
+        <div class="meta">الوزن: ${p.weight} جم • عيار ${p.karat}</div>
+        <div class="price">${mn(price)} ر.س</div>
+        <a class="wa" href="${waLink}" target="_blank">📱 اطلب عبر واتساب</a>
+      </div>
+    `;
+  });
+
+  $('#publicContent').innerHTML = `
+    <div class="calc">
+      <h2>🧮 حاسبة الذهب</h2>
+      <p style="font-size:13px;color:#78350e;margin-bottom:12px">احسب سعر أي قطعة حسب أسعار اليوم</p>
+      <div class="g2">
+        <div class="f"><label>الوزن (جرام)</label><input id="calcW" type="number" step="0.01" value="1" oninput="runCalc()"></div>
+        <div class="f"><label>العيار</label>
+          <select id="calcK" onchange="runCalc()">
+            <option value="24">24</option>
+            <option value="22">22</option>
+            <option value="21" selected>21</option>
+            <option value="18">18</option>
+            <option value="14">14</option>
+          </select>
+        </div>
+        <div class="f"><label>المصنعية</label><input id="calcM" type="number" step="0.01" value="0" oninput="runCalc()"></div>
+        <div class="f"><label>نوع المصنعية</label>
+          <select id="calcT" onchange="runCalc()">
+            <option value="per_gram">لكل جرام</option>
+            <option value="percent">نسبة %</option>
+            <option value="fixed">مبلغ ثابت</option>
+          </select>
+        </div>
+      </div>
+      <div class="result" id="calcResult">—</div>
+    </div>
+
+    <div class="ttl">
+      <h1>منتجاتنا</h1>
+      <p>${products.length} قطعة معروضة</p>
+    </div>
+
+    ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا توجد منتجات معروضة حالياً</div>'}
+  `;
+  runCalc();
+}
+
+function runCalc() {
+  const w = parseFloat($('#calcW').value) || 0;
+  const k = parseInt($('#calcK').value);
+  const m = parseFloat($('#calcM').value) || 0;
+  const t = $('#calcT').value;
+  const gp = session.prices[k] || 0;
+  const base = gp * w;
+  let making = 0;
+  if (t === 'per_gram') making = m * w;
+  else if (t === 'percent') making = base * m / 100;
+  else making = m;
+  const total = base + making;
+  $('#calcResult').innerHTML = `
+    سعر الجرام: ${mn(gp)} ر.س<br>
+    قيمة الذهب: ${mn(base)} ر.س<br>
+    المصنعية: ${mn(making)} ر.س<br>
+    <div style="font-size:22px;margin-top:6px">الإجمالي: ${mn(total)} ر.س</div>
+  `;
+}
+
+function showPublicError(msg) {
+  $('#pubShopName').textContent = '💎 منصة الذهب';
+  $('#pubWhatsapp').style.display = 'none';
+  $('#publicContent').innerHTML = '<div class="empty" style="font-size:18px">❌ ' + esc(msg) + '</div>';
+}
+
+// ==================== Router ====================
+async function route() {
+  const hash = location.hash || '';
+  const m = hash.match(/#shop=([a-z0-9-]+)/i);
+  if (m) {
+    await loadPublicShop(m[1].toLowerCase());
+    showPublicScreen();
+    return true;
+  }
+  return false;
+}
+
+async function boot() {
+  const routed = await route();
+  if (routed) return;
+
+  // استعادة جلسة الأدمن
+  if (sessionStorage.getItem('gold_admin') === '1') {
+    session.admin = true;
+    await loadPrices();
+    await adminLoadList();
+    showAdminScreen();
+    return;
+  }
+
+  // استعادة جلسة الصائغ
+  const sj = localStorage.getItem('gold_shop_session');
+  if (sj) {
+    try {
+      const { slug } = JSON.parse(sj);
+      const r = await db.from('shops').select('*').eq('slug', slug).single();
+      if (!r.error && r.data && r.data.status === 'active' && (!r.data.expires_at || new Date(r.data.expires_at) > new Date())) {
+        session.shop = r.data;
+        await loadPrices();
+        showShopScreen();
+        return;
+      }
+    } catch (e) {}
+    localStorage.removeItem('gold_shop_session');
+  }
+
+  hideAll();
+  $('#authScreen').classList.remove('h');
+}
+
+window.addEventListener('hashchange', () => { location.reload(); });
+
+// Expose functions
+Object.assign(window, {
+  switchAuth, doShopLogin, doAdminLogin, adminLogout, shopLogout,
+  adminTab, adminRefresh, adminPrices, savePrices, adminShops, adminAddShop, createShop,
+  extendShop, toggleShop, resetShopPass, deleteShop, adminSettings, changeAdminPass,
+  shopTab, shopRefresh, shopProducts, shopAddProduct, saveProduct, toggleProduct, deleteProduct,
+  copyShopLink, shopSettings, shopChangePass, runCalc
+});
+
+boot();
+</script>
+</body>
+</html>
