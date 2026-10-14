@@ -555,8 +555,18 @@ function getActiveShopTab() { const el = $('#shopScreen .nav button.on'); return
 
 function shopTab(t) {
   $$('#shopScreen .nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  if (t === 'products') shopProducts();
-  else if (t === 'addProduct') shopAddProduct();
+  if (t === 'products') {
+    editingProductId = null;   // ← إعادة التصفير عند العودة للمنتجات
+    shopProducts();
+  }
+  else if (t === 'addProduct') {
+    // لو كان هناك منتج قيد التعديل، لا نُصفّر
+    if (editingProductId) {
+      shopEditProduct(editingProductId);
+    } else {
+      shopAddProduct();
+    }
+  }
   else if (t === 'settings') shopSettings();
 }
 async function shopProducts() {
@@ -732,17 +742,16 @@ function shopAddProduct() {
   editingProductId = null;
   renderProductForm({});
 }
-
 function shopEditProduct(id) {
-  // ابحث عن المنتج من قائمة session
   db.from('products').select('*').eq('id', id).single().then(r => {
     if (r.error || !r.data) return alert('المنتج غير موجود');
     editingProductId = id;
     renderProductForm(r.data);
-    shopTab('addProduct'); // نفس الصفحة
+
+    // تحديث القائمة الجانبية يدوياً بدون استدعاء shopTab
+    $$('#shopScreen .nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === 'addProduct'));
   });
 }
-
 function renderProductForm(p) {
   const tagsStr = (p.tags || []).join('، ');
 
