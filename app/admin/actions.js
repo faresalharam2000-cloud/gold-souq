@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import sql from '@/lib/db'
 import { setAdminCookie, clearAdminCookie, isAdmin } from '@/lib/auth'
+import { hashPassword } from '@/lib/goldsmith-auth'
 
 export async function loginAction(formData) {
   const password = formData.get('password')
@@ -45,17 +46,36 @@ export async function addShopAction(formData) {
   const slug = formData.get('slug')
   const city = formData.get('city')
   const whatsapp = formData.get('whatsapp')
+  const password = formData.get('password')
+
+  if (!password || password.length < 4) {
+    redirect('/admin?error=password')
+  }
+
+  const passwordHash = hashPassword(password)
 
   try {
     await sql`
-      INSERT INTO shops (name, slug, city, whatsapp)
-      VALUES (${name}, ${slug}, ${city}, ${whatsapp})
+      INSERT INTO shops (name, slug, city, whatsapp, password_hash)
+      VALUES (${name}, ${slug}, ${city}, ${whatsapp}, ${passwordHash})
     `
   } catch (e) {
     redirect('/admin?error=slug')
   }
   revalidatePath('/admin')
   revalidatePath('/')
+  redirect('/admin?saved=1')
+}
+
+export async function resetPasswordAction(formData) {
+  if (!(await isAdmin())) redirect('/admin/login')
+
+  const id = formData.get('id')
+  const password = formData.get('password')
+  if (!password || password.length < 4) redirect('/admin')
+
+  await sql`UPDATE shops SET password_hash = ${hashPassword(password)} WHERE id = ${id}`
+  revalidatePath('/admin')
   redirect('/admin?saved=1')
 }
 
