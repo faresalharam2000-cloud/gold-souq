@@ -1011,18 +1011,37 @@ function renderPublicShop() {
   const shop = session.publicShop;
   const products = publicProducts;
 
-  const allTags = [...new Set(products.flatMap(p => p.tags || []))].sort((a, b) => a.localeCompare(b, 'ar'));
- let filtered = publicFilter ? products.filter(p => (p.tags || []).includes(publicFilter)) : products;
-if (shopQ) {
-  filtered = filtered.filter(p =>
-    (p.sku || '').toLowerCase().includes(shopQ) ||
-    (p.title || '').toLowerCase().includes(shopQ) ||
-    (p.description || '').toLowerCase().includes(shopQ)
-  );
-}
-
+  let html = '';
   let cards = '';
-  filtered.forEach(p => {
+  let allTags = [];
+
+  // استخراج التصنيفات
+  const tagSet = {};
+  products.forEach(function(p) {
+    (p.tags || []).forEach(function(t) {
+      if (!tagSet[t]) tagSet[t] = 0;
+      tagSet[t]++;
+    });
+  });
+  allTags = Object.keys(tagSet).sort(function(a, b) { return a.localeCompare(b, 'ar'); });
+
+  // فلترة
+  const shopQ = (window.publicSearch || '').trim().toLowerCase();
+  let filtered = publicFilter ? products.filter(function(p) {
+    return (p.tags || []).indexOf(publicFilter) !== -1;
+  }) : products.slice();
+
+  if (shopQ) {
+    filtered = filtered.filter(function(p) {
+      const inSku = (p.sku || '').toLowerCase().indexOf(shopQ) !== -1;
+      const inTitle = (p.title || '').toLowerCase().indexOf(shopQ) !== -1;
+      const inDesc = (p.description || '').toLowerCase().indexOf(shopQ) !== -1;
+      return inSku || inTitle || inDesc;
+    });
+  }
+
+  // بطاقات المنتجات
+  filtered.forEach(function(p) {
     const w = parseFloat(p.weight) || 0;
     const gp = session.prices[p.karat] || 0;
     const goldValue = gp * w;
@@ -1032,107 +1051,105 @@ if (shopQ) {
     else making = parseFloat(p.making_charge_value || 0);
     const total = goldValue + making;
 
-    const tags = (p.tags || []).map(t =>
-      `<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;margin:2px">${esc(t)}</span>`
-    ).join('');
+    let tagsHtml = '';
+    (p.tags || []).forEach(function(t) {
+      tagsHtml += '<span style="background:#e0e7ff;color:#4338ca;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;margin:2px">' + esc(t) + '</span>';
+    });
 
     const waLink = 'https://wa.me/' + (shop.whatsapp || '').replace(/\D/g, '') + '?text=' +
-      encodeURIComponent(`مرحباً، أرغب بطلب:\n${p.title}\nالوزن: ${p.weight} جم\nالعيار: ${p.karat}\nالسعر: ${total.toFixed(2)} ر.س`);
+      encodeURIComponent('مرحباً، أرغب بطلب:\n' + p.title + '\nالوزن: ' + p.weight + ' جم\nالعيار: ' + p.karat + '\nالسعر: ' + total.toFixed(2) + ' ر.س');
 
-    cards += `
-      <div class="card">
-        ${p.image_url ? `<img src="${esc(p.image_url)}" onerror="this.style.display='none'">` : ''}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-  <span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#334155">${esc(p.sku || '—')}</span>
-</div>
-<h3>${esc(p.title)}</h3>
-        ${tags ? `<div style="margin:4px 0">${tags}</div>` : ''}
-        ${p.description ? `<div class="meta">${esc(p.description)}</div>` : ''}
+    cards += '<div class="card">';
+    if (p.image_url) cards += '<img src="' + esc(p.image_url) + '" onerror="this.style.display=\'none\'">';
+    cards += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+    cards += '<span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#334155">' + esc(p.sku || '—') + '</span>';
+    cards += '</div>';
+    cards += '<h3>' + esc(p.title) + '</h3>';
+    if (tagsHtml) cards += '<div style="margin:4px 0">' + tagsHtml + '</div>';
+    if (p.description) cards += '<div class="meta">' + esc(p.description) + '</div>';
 
-        <div style="background:#f8fafc;border-radius:8px;padding:10px;margin:10px 0;font-size:12.5px;border:1px solid #e2e8f0">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="color:#64748b">الوزن:</span>
-            <strong>${p.weight} جم</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="color:#64748b">العيار:</span>
-            <strong>${p.karat}</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="color:#64748b">سعر الجرام:</span>
-            <strong style="color:#c9a227">${mn(gp)}</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;padding-top:4px;border-top:1px dashed #cbd5e1">
-            <span style="color:#64748b">قيمة الذهب:</span>
-            <strong style="color:#c9a227">${mn(goldValue)} ر.س</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <span style="color:#64748b">الأجور:</span>
-            <strong style="color:#2563eb">${mn(making)} ر.س</strong>
-          </div>
-          <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:2px solid #16a34a;font-size:15px">
-            <strong>الإجمالي:</strong>
-            <strong style="color:#16a34a">${mn(total)} ر.س</strong>
-          </div>
-        </div>
+    cards += '<div style="background:#f8fafc;border-radius:8px;padding:10px;margin:10px 0;font-size:12.5px;border:1px solid #e2e8f0">';
+    cards += '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">الوزن:</span><strong>' + p.weight + ' جم</strong></div>';
+    cards += '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">العيار:</span><strong>' + p.karat + '</strong></div>';
+    cards += '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">سعر الجرام:</span><strong style="color:#c9a227">' + mn(gp) + '</strong></div>';
+    cards += '<div style="display:flex;justify-content:space-between;margin-bottom:4px;padding-top:4px;border-top:1px dashed #cbd5e1"><span style="color:#64748b">قيمة الذهب:</span><strong style="color:#c9a227">' + mn(goldValue) + ' ر.س</strong></div>';
+    cards += '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:#64748b">الأجور:</span><strong style="color:#2563eb">' + mn(making) + ' ر.س</strong></div>';
+    cards += '<div style="display:flex;justify-content:space-between;padding-top:6px;border-top:2px solid #16a34a;font-size:15px"><strong>الإجمالي:</strong><strong style="color:#16a34a">' + mn(total) + ' ر.س</strong></div>';
+    cards += '</div>';
 
-        <a class="wa" href="${waLink}" target="_blank" style="display:block;text-align:center">📱 اطلب عبر واتساب</a>
-      </div>
-    `;
+    cards += '<a class="wa" href="' + waLink + '" target="_blank" style="display:block;text-align:center">📱 اطلب عبر واتساب</a>';
+    cards += '</div>';
   });
 
-  const shopQ = (window.publicSearch || '').trim().toLowerCase();
-  const filterBar = allTags.length ? `
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">
-      <div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:8px">🔍 تصفية حسب التصنيف:</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="b sm ${!publicFilter ? 'p' : ''}" onclick="filterPublic('')">الكل (${products.length})</button>
-        ${allTags.map(t => {
-          const count = products.filter(p => (p.tags || []).includes(t)).length;
-          return `<button class="b sm ${publicFilter === t ? 'p' : ''}" onclick="filterPublic('${esc(t).replace(/'/g, "\\'")}')">${esc(t)} (${count})</button>`;
-        }).join('')}
-      </div>
-    </div>
-  ` : '';
+  // شريط الفلاتر
+  let filterBar = '';
+  if (allTags.length) {
+    filterBar += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">';
+    filterBar += '<div style="font-size:12px;color:#64748b;font-weight:700;margin-bottom:8px">🔍 تصفية حسب التصنيف:</div>';
+    filterBar += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    filterBar += '<button class="b sm ' + (!publicFilter ? 'p' : '') + '" onclick="filterPublic(\'\')">الكل (' + products.length + ')</button>';
+    allTags.forEach(function(t) {
+      const c = tagSet[t];
+      filterBar += '<button class="b sm ' + (publicFilter === t ? 'p' : '') + '" onclick="filterPublic(\'' + esc(t).replace(/'/g, "\\'") + '\')">' + esc(t) + ' (' + c + ')</button>';
+    });
+    filterBar += '</div></div>';
+  }
 
- <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">
-  <input id="publicSearch" placeholder="🔍 ابحث برقم القطعة أو الاسم..." 
-    value="${esc(window.publicSearch || '')}" 
-    oninput="publicSearchChange(this.value)">
-</div>
-  $('#publicContent').innerHTML = `
-    <div class="calc">
-      <h2>🧮 حاسبة الذهب</h2>
-      <p style="font-size:13px;color:#78350e;margin-bottom:12px">احسب سعر أي قطعة حسب أسعار اليوم</p>
-      <div class="g2">
-        <div class="f"><label>الوزن (جرام)</label><input id="calcW" type="number" step="0.01" value="1" oninput="runCalc()"></div>
-        <div class="f"><label>العيار</label>
-          <select id="calcK" onchange="runCalc()">
-            ${[24,22,21,18,14].map(k => `<option value="${k}"${k === 21 ? ' selected' : ''}>${k}</option>`).join('')}
-          </select>
-        </div>
-        <div class="f"><label>المصنعية</label><input id="calcM" type="number" step="0.01" value="0" oninput="runCalc()"></div>
-        <div class="f"><label>نوع المصنعية</label>
-          <select id="calcT" onchange="runCalc()">
-            <option value="per_gram">لكل جرام</option>
-            <option value="percent">نسبة %</option>
-            <option value="fixed">مبلغ ثابت</option>
-          </select>
-        </div>
-      </div>
-      <div class="result" id="calcResult">—</div>
-    </div>
+  // بناء الصفحة
+  html += '<div class="calc">';
+  html += '<h2>🧮 حاسبة الذهب</h2>';
+  html += '<p style="font-size:13px;color:#78350e;margin-bottom:12px">احسب سعر أي قطعة حسب أسعار اليوم</p>';
+  html += '<div class="g2">';
+  html += '<div class="f"><label>الوزن (جرام)</label><input id="calcW" type="number" step="0.01" value="1" oninput="runCalc()"></div>';
+  html += '<div class="f"><label>العيار</label><select id="calcK" onchange="runCalc()">';
+  [24,22,21,18,14].forEach(function(k) {
+    html += '<option value="' + k + '"' + (k === 21 ? ' selected' : '') + '>' + k + '</option>';
+  });
+  html += '</select></div>';
+  html += '<div class="f"><label>المصنعية</label><input id="calcM" type="number" step="0.01" value="0" oninput="runCalc()"></div>';
+  html += '<div class="f"><label>نوع المصنعية</label><select id="calcT" onchange="runCalc()">';
+  html += '<option value="per_gram">لكل جرام</option>';
+  html += '<option value="percent">نسبة %</option>';
+  html += '<option value="fixed">مبلغ ثابت</option>';
+  html += '</select></div>';
+  html += '</div>';
+  html += '<div class="result" id="calcResult">—</div>';
+  html += '</div>';
 
-    ${filterBar}
+  // حقل البحث
+  html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:20px">';
+  html += '<input id="publicSearch" placeholder="🔍 ابحث برقم القطعة أو الاسم..." value="' + esc(window.publicSearch || '') + '" oninput="publicSearchChange(this.value)">';
+  html += '</div>';
 
-    <div class="ttl">
-      <h1>${publicFilter ? 'تصنيف: ' + esc(publicFilter) : 'منتجاتنا'}</h1>
-      <p>${filtered.length} قطعة معروضة</p>
-    </div>
+  html += filterBar;
 
-    ${cards ? `<div class="grid">${cards}</div>` : '<div class="empty">لا توجد منتجات</div>'}
-  `;
+  html += '<div class="ttl">';
+  html += '<h1>' + (publicFilter ? 'تصنيف: ' + esc(publicFilter) : 'منتجاتنا') + '</h1>';
+  html += '<p>' + filtered.length + ' قطعة معروضة</p>';
+  html += '</div>';
+
+  if (cards) {
+    html += '<div class="grid">' + cards + '</div>';
+  } else {
+    html += '<div class="empty">لا توجد منتجات</div>';
+  }
+
+  $('#publicContent').innerHTML = html;
   runCalc();
+
+  // إعادة التركيز على حقل البحث
+  if (window.publicSearch) {
+    setTimeout(function() {
+      const inp = $('#publicSearch');
+      if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    }, 10);
+  }
+}
+
+window.publicSearch = '';
+function publicSearchChange(v) {
+  window.publicSearch = v;
+  renderPublicShop();
 }
 function filterPublic(tag) {
   publicFilter = tag;
