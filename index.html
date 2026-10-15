@@ -220,6 +220,55 @@ class QB {
 const db = { from: t => new QB(t) };
 
 // ==================== Utilities ====================
+  // ==================== Image Compression ====================
+// تضغط الصورة: تصغير لأقصى 900px + تحويل JPEG بجودة 0.75
+function compressImage(file, maxWidth, quality) {
+  maxWidth = maxWidth || 900;
+  quality = quality || 0.75;
+  return new Promise(function(resolve, reject) {
+    if (!file.type.startsWith('image/')) return reject(new Error('الملف ليس صورة'));
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let w = img.width;
+        let h = img.height;
+
+        if (w > maxWidth) {
+          h = Math.round(h * (maxWidth / w));
+          w = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+
+        // خلفية بيضاء (لتفادي الشفافية السوداء عند التحويل JPEG)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const originalKB = Math.round(file.size / 1024);
+        const compressedKB = Math.round((dataUrl.length * 3 / 4) / 1024);
+
+        resolve({
+          dataUrl: dataUrl,
+          originalKB: originalKB,
+          compressedKB: compressedKB,
+          width: w,
+          height: h
+        });
+      };
+      img.onerror = function() { reject(new Error('فشل تحميل الصورة')); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function() { reject(new Error('فشل قراءة الملف')); };
+    reader.readAsDataURL(file);
+  });
+}
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -671,7 +720,7 @@ async function shopProducts() {
 
     cards += `
       <div class="card">
-        ${p.image_url ? `<img src="${esc(p.image_url)}" onerror="this.style.display='none'">` : ''}
+        ${(p.image_data || p.image_url) ? `<img src="${p.image_data || p.image_url}" onerror="this.style.display='none'">` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
           <span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#334155">${esc(p.sku || '—')}</span>
           ${p.status === 'hidden' ? '<span class="bd w">مخفي</span>' : '<span class="bd o">معروض</span>'}
@@ -828,10 +877,12 @@ function shopEditProduct(id) {
     $$('#shopScreen .nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === 'addProduct'));
   });
 }
+let editingProductId = null;
+
 function renderProductForm(p) {
   const tagsStr = (p.tags || []).join('، ');
-  // توليد رقم تلقائي لو جديد
   const autoSku = p.sku || ('P-' + Date.now().toString(36).toUpperCase().slice(-6));
+  const hasImage = p.image_data || p.image_url;
 
   $('#shopContent').innerHTML = `
     <div class="panel">
@@ -840,21 +891,38 @@ function renderProductForm(p) {
       <div class="g2">
         <div class="f">
           <label>رقم القطعة *</label>
-          <input id="npSku" value="${esc(autoSku)}" placeholder="P-000123">
-          <div style="font-size:11px;color:#64748b;margin-top:4px">💡 رقم فريد للقطعة (يظهر للزبون للبحث)</div>
+          <input id="npSku" value="${esc(autoSku)}">
         </div>
         <div class="f">
           <label>اسم المنتج *</label>
-          <input id="npTitle" value="${esc(p.title || '')}" placeholder="خاتم ذهب كلاسيكي">
+          <input id="npTitle" value="${esc(p.title || '')}">
         </div>
       </div>
 
       <div class="f"><label>الوصف</label><textarea id="npDesc" rows="2" style="font-family:inherit;resize:vertical">${esc(p.description || '')}</textarea></div>
-      <div class="f"><label>رابط الصورة (اختياري)</label><input id="npImg" value="${esc(p.image_url || '')}" placeholder="https://..."></div>
+
+      <!-- صورة المنتج -->
+      <div class="f">
+        <label>صورة المنتج</label>
+        <div style="background:#f8fafc;border:2px dashed #cbd5e1;border-radius:10px;padding:16px;text-align:center">
+          <div id="imgPreviewBox" style="${hasImage ? '' : 'display:none;'}margin-bottom:10px">
+            <img id="imgPreview" src="${hasImage ? esc(p.image_data || p.image_url) : ''}" style="max-width:100%;max-height:260px;border-radius:8px;border:1px solid #e2e8f0">
+            <div id="imgInfo" style="font-size:11.5px;color:#64748b;margin-top:6px"></div>
+          </div>
+          <input type="file" id="npFile" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <button type="button" class="b p" onclick="$('#npFile').click()">📷 اختيار صورة من الجهاز</button>
+            ${hasImage ? '<button type="button" class="b d" onclick="removeProductImage()">🗑️ حذف الصورة</button>' : ''}
+          </div>
+          <div style="font-size:11.5px;color:#64748b;margin-top:8px">💡 يتم ضغط الصورة تلقائياً قبل الحفظ</div>
+        </div>
+        <input type="hidden" id="npImgData" value="${esc(p.image_data || '')}">
+        <input type="hidden" id="npImgUrl" value="${esc(p.image_url || '')}">
+      </div>
 
       <div class="f">
         <label>التصنيفات (افصل بفاصلة "،")</label>
-        <input id="npTags" value="${esc(tagsStr)}" placeholder="مثال: خواتم، رجالي، كلاسيك">
+        <input id="npTags" value="${esc(tagsStr)}" placeholder="خواتم، رجالي، كلاسيك">
       </div>
 
       <div class="g2">
@@ -884,11 +952,50 @@ function renderProductForm(p) {
     </div>
   `;
 }
+
+async function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (file.size > 8 * 1024 * 1024) {
+    alert('⚠️ حجم الصورة كبير جداً (الحد 8MB)');
+    event.target.value = '';
+    return;
+  }
+
+  const box = $('#imgPreviewBox');
+  const info = $('#imgInfo');
+  box.style.display = 'block';
+  $('#imgPreview').src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="100" y="55" text-anchor="middle" fill="%2364748b">⏳ جاري الضغط...</text></svg>';
+  info.textContent = '';
+
+  try {
+    const result = await compressImage(file, 900, 0.75);
+    $('#imgPreview').src = result.dataUrl;
+    $('#npImgData').value = result.dataUrl;
+    $('#npImgUrl').value = '';
+    info.innerHTML = '✅ <strong>' + result.width + '×' + result.height + '</strong> • ' +
+      'قبل: ' + result.originalKB + 'KB → بعد: <strong style="color:#16a34a">' + result.compressedKB + 'KB</strong>';
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+    box.style.display = 'none';
+  }
+  event.target.value = '';
+}
+
+function removeProductImage() {
+  if (!confirm('حذف صورة المنتج؟')) return;
+  $('#npImgData').value = '';
+  $('#npImgUrl').value = '';
+  $('#imgPreviewBox').style.display = 'none';
+  $('#imgPreview').src = '';
+}
 async function saveProduct() {
   const sku = $('#npSku').value.trim();
   const title = $('#npTitle').value.trim();
   const desc = $('#npDesc').value.trim();
-  const img = $('#npImg').value.trim();
+  const imgData = $('#npImgData').value;
+  const imgUrl = $('#npImgUrl').value;
   const weight = parseFloat($('#npWeight').value);
   const karat = parseInt($('#npKarat').value);
   const type = $('#npType').value;
@@ -902,7 +1009,6 @@ async function saveProduct() {
 
   try {
     if (editingProductId) {
-      // التحقق من عدم تكرار الرقم (لبائع آخر)
       const dup = await sqlQuery(
         'SELECT id FROM products WHERE sku = $1 AND shop_id = $2 AND id != $3',
         [sku, session.shop.id, editingProductId]
@@ -910,21 +1016,20 @@ async function saveProduct() {
       if (dup.length > 0) return alert('⚠️ رقم القطعة مستخدم من قبل');
 
       await sqlQuery(
-        `UPDATE products SET sku=$1, title=$2, description=$3, image_url=$4, weight=$5, karat=$6, making_charge_type=$7, making_charge_value=$8, tags=$9 WHERE id=$10`,
-        [sku, title, desc, img, weight, karat, type, val, tags, editingProductId]
+        `UPDATE products SET sku=$1, title=$2, description=$3, image_url=$4, image_data=$5, weight=$6, karat=$7, making_charge_type=$8, making_charge_value=$9, tags=$10 WHERE id=$11`,
+        [sku, title, desc, imgUrl, imgData || null, weight, karat, type, val, tags, editingProductId]
       );
       alert('✅ تم حفظ التعديلات');
     } else {
-      // التحقق من عدم التكرار
       const dup = await sqlQuery(
         'SELECT id FROM products WHERE sku = $1 AND shop_id = $2',
         [sku, session.shop.id]
       );
-      if (dup.length > 0) return alert('⚠️ رقم القطعة مستخدم من قبل. غيّره أو احذفه.');
+      if (dup.length > 0) return alert('⚠️ رقم القطعة مستخدم من قبل');
 
       await sqlQuery(
-        `INSERT INTO products (shop_id, sku, title, description, image_url, weight, karat, making_charge_type, making_charge_value, status, tags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'available',$10)`,
-        [session.shop.id, sku, title, desc, img, weight, karat, type, val, tags]
+        `INSERT INTO products (shop_id, sku, title, description, image_url, image_data, weight, karat, making_charge_type, making_charge_value, status, tags) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'available',$11)`,
+        [session.shop.id, sku, title, desc, imgUrl, imgData || null, weight, karat, type, val, tags]
       );
       alert('✅ تم حفظ المنتج');
     }
@@ -1060,7 +1165,8 @@ function renderPublicShop() {
       encodeURIComponent('مرحباً، أرغب بطلب:\n' + p.title + '\nالوزن: ' + p.weight + ' جم\nالعيار: ' + p.karat + '\nالسعر: ' + total.toFixed(2) + ' ر.س');
 
     cards += '<div class="card">';
-    if (p.image_url) cards += '<img src="' + esc(p.image_url) + '" onerror="this.style.display=\'none\'">';
+    const imgSrc = p.image_data || p.image_url;
+if (imgSrc) cards += '<img src="' + imgSrc + '" onerror="this.style.display=\'none\'">';
     cards += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
     cards += '<span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700;color:#334155">' + esc(p.sku || '—') + '</span>';
     cards += '</div>';
@@ -1281,7 +1387,7 @@ Object.assign(window, {
   shopTab, shopRefresh, shopProducts, shopAddProduct, saveProduct, toggleProduct, deleteProduct,
   copyShopLink, shopSettings, shopChangePass, runCalc,
   shopEditProduct, renderProductForm, filterPublic,
-  shopSearchChange, togglePublicLink, publicSearchChange,
+  shopSearchChange, togglePublicLink, publicSearchChange,handleImageUpload, removeProductImage,
   copyToClipboard   // ← أضف هذا
 });
 
