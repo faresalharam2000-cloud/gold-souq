@@ -66,7 +66,16 @@ td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
 .ttl{text-align:center;margin-bottom:20px}
 .ttl h1{font-size:26px;color:#1e293b}
 .ttl p{color:#64748b;margin-top:4px}
-@media(max-width:600px){.g2{grid-template-columns:1fr}.crd{padding:20px}.card img{height:150px}}
+/* ============ Modal ============ */
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.6);display:flex;align-items:center;justify-content:center;padding:12px;z-index:300;overflow-y:auto}
+.md{background:#fff;border-radius:12px;width:100%;max-width:600px;margin:auto;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.mh{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e2e8f0}
+.mh h3{font-size:15px;color:#1e293b;font-weight:700}
+.mh button{border:0;background:transparent;font-size:22px;color:#64748b;cursor:pointer;padding:0 6px;line-height:1}
+.mh button:hover{color:#dc2626}
+.mb{padding:16px 18px;overflow-y:auto;flex:1}
+.mf{padding:12px 18px;border-top:1px solid #e2e8f0;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  @media(max-width:600px){.g2{grid-template-columns:1fr}.crd{padding:20px}.card img{height:150px}}
 </style>
 </head>
 <body>
@@ -133,6 +142,17 @@ td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
 </div>
 
 <!-- شاشة المحل العامة (للزبون) -->
+  <!-- نافذة منبثقة -->
+<div id="ov" class="ov h">
+  <div class="md">
+    <div class="mh">
+      <h3 id="mT"></h3>
+      <button onclick="closeModal()">✕</button>
+    </div>
+    <div class="mb" id="mB"></div>
+    <div class="mf" id="mF"></div>
+  </div>
+</div>
 <div id="publicScreen" class="h">
   <header>
     <div class="br" id="pubShopName">💎</div>
@@ -220,6 +240,29 @@ class QB {
 const db = { from: t => new QB(t) };
 
 // ==================== Utilities ====================
+  // ==================== Modal ====================
+function openModal(title, body, footer) {
+  $('#mT').textContent = title || '';
+  $('#mB').innerHTML = body || '';
+  $('#mF').innerHTML = footer || '<button class="b" onclick="closeModal()">إغلاق</button>';
+  $('#ov').classList.remove('h');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  $('#ov').classList.add('h');
+  document.body.style.overflow = '';
+}
+
+// إغلاق الـ Modal عند الضغط على الخلفية
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'ov') closeModal();
+});
+
+// إغلاق عند ESC
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
   // ==================== Image Compression ====================
 // تضغط الصورة: تصغير لأقصى 900px + تحويل JPEG بجودة 0.75
 function compressImage(file, maxWidth, quality) {
@@ -1630,7 +1673,7 @@ Object.assign(window, {
   copyShopLink, shopSettings, shopChangePass, runCalc,
   shopEditProduct, renderProductForm, filterPublic,
   shopSearchChange, togglePublicLink, publicSearchChange,handleImageUpload, removeProductImage,
-  openShopEditModal, saveShopEdit,saveShopProfile,
+  openShopEditModal, saveShopEdit,saveShopProfile,openModal, closeModal,
   copyToClipboard   // ← أضف هذا
 });
 
