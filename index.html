@@ -519,6 +519,8 @@ function adminShops() {
       '<td><div style="display:flex;gap:4px;flex-wrap:wrap">' +
         '<button class="b sm p" onclick="openShopEditModal(\'' + s.id + '\')">✏️ تعديل</button>' +
         '<button class="b sm w" onclick="extendShop(\'' + s.id + '\')">➕</button>' +
+      '<button class="b sm w" onclick="reduceShop(\'' + s.id + '\')" title="خصم أيام">➖</button>' +
+      '<button class="b sm" onclick="setShopExpiry(\'' + s.id + '\')" title="تعيين تاريخ محدد">📅</button>' +
         '<button class="b sm ' + (s.status === 'active' ? 'd' : 's') + '" onclick="toggleShop(\'' + s.id + '\')">' + (s.status === 'active' ? '⏸️' : '▶️') + '</button>' +
         '<button class="b sm d" onclick="deleteShop(\'' + s.id + '\')">🗑️</button>' +
       '</div></td>' +
@@ -697,6 +699,48 @@ async function extendShop(id) {
     alert('✅ تم التمديد حتى ' + current.toLocaleDateString('ar'));
   } catch (e) {
     alert('❌ خطأ في التمديد: ' + e.message);
+  }
+}
+  async function reduceShop(id) {
+  const s = adminList.find(function(x) { return x.id === id; });
+  if (!s) return alert('المحل غير موجود');
+
+  if (!s.expires_at) return alert('لا يوجد تاريخ انتهاء لهذا المحل');
+
+  const current = new Date(s.expires_at);
+  const daysLeft = Math.ceil((current - new Date()) / 86400000);
+
+  const days = prompt(
+    '➖ خصم أيام من: ' + s.name + '\n\n' +
+    'تاريخ الانتهاء الحالي: ' + current.toLocaleDateString('ar') + '\n' +
+    'المتبقي: ' + daysLeft + ' يوم\n\n' +
+    'كم يوم تريد خصمه؟',
+    '5'
+  );
+  if (days === null) return;
+  const n = parseInt(days);
+  if (isNaN(n) || n < 1) return alert('رقم غير صحيح');
+
+  // تحذير لو الخصم سيجعل الحساب منتهياً
+  const newDate = new Date(current);
+  newDate.setDate(newDate.getDate() - n);
+  const willExpire = newDate < new Date();
+
+  let msg = 'سيصبح تاريخ الانتهاء: ' + newDate.toLocaleDateString('ar');
+  if (willExpire) msg += '\n\n⚠️ تحذير: الحساب سيصبح منتهي الصلاحية فوراً!';
+
+  if (!confirm(msg + '\n\nمتابعة؟')) return;
+
+  try {
+    await sqlQuery(
+      'UPDATE shops SET expires_at = $1 WHERE id = $2',
+      [newDate.toISOString(), id]
+    );
+    await adminLoadList();
+    adminTab('shops');
+    alert('✅ تم خصم ' + n + ' يوم\nتاريخ الانتهاء الجديد: ' + newDate.toLocaleDateString('ar'));
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
   }
 }
 async function toggleShop(id) {
@@ -1597,6 +1641,36 @@ async function route() {
   }
   return false;
 }
+  async function setShopExpiry(id) {
+  const s = adminList.find(function(x) { return x.id === id; });
+  if (!s) return;
+
+  const current = s.expires_at ? new Date(s.expires_at) : new Date();
+  const currentStr = current.toISOString().slice(0, 10);
+
+  const input = prompt(
+    '📅 تعيين تاريخ الانتهاء لـ: ' + s.name + '\n\n' +
+    'اكتب التاريخ بصيغة YYYY-MM-DD\n' +
+    'مثال: 2026-12-31',
+    currentStr
+  );
+  if (!input) return;
+
+  const newDate = new Date(input + 'T23:59:59');
+  if (isNaN(newDate.getTime())) return alert('تاريخ غير صحيح');
+
+  try {
+    await sqlQuery(
+      'UPDATE shops SET expires_at = $1, status = $2 WHERE id = $3',
+      [newDate.toISOString(), 'active', id]
+    );
+    await adminLoadList();
+    adminTab('shops');
+    alert('✅ تم التعيين\nتاريخ الانتهاء: ' + newDate.toLocaleDateString('ar'));
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+  }
+}
 function copyToClipboard(text, el) {
   navigator.clipboard.writeText(text).then(() => {
     const orig = el.textContent;
@@ -1673,7 +1747,7 @@ Object.assign(window, {
   copyShopLink, shopSettings, shopChangePass, runCalc,
   shopEditProduct, renderProductForm, filterPublic,
   shopSearchChange, togglePublicLink, publicSearchChange,handleImageUpload, removeProductImage,
-  openShopEditModal, saveShopEdit,saveShopProfile,openModal, closeModal,
+  openShopEditModal, saveShopEdit,saveShopProfile,openModal, closeModal,reduceShop,setShopExpiry,
   copyToClipboard   // ← أضف هذا
 });
 
