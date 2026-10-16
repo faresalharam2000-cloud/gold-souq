@@ -1194,28 +1194,129 @@ function copyShopLink() {
   const url = location.origin + location.pathname + '#shop=' + session.shop.slug;
   navigator.clipboard.writeText(url).then(() => alert('✅ تم نسخ الرابط:\n' + url));
 }
-
 function shopSettings() {
+  const s = session.shop;
+
   $('#shopContent').innerHTML = `
+    <div class="panel">
+      <h2>✏️ تعديل بيانات محلك</h2>
+      <p style="color:#64748b;font-size:12.5px;margin-bottom:14px">💡 تُحدَّث فوراً على متجرك ورابط زبائنك</p>
+
+      <div class="g2">
+        <div class="f">
+          <label>اسم المحل *</label>
+          <input id="ssName" value="${esc(s.name || '')}" placeholder="مجوهرات الفيصل">
+        </div>
+        <div class="f">
+          <label>اسم المالك</label>
+          <input id="ssOwner" value="${esc(s.owner_name || '')}" placeholder="اسم صاحب المحل">
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="f">
+          <label>رقم واتساب *</label>
+          <input id="ssWa" value="${esc(s.whatsapp || '')}" placeholder="966501234567" style="direction:ltr;text-align:right">
+          <div style="font-size:11px;color:#64748b;margin-top:4px">بصيغة دولية: 966xxxxxxxxx</div>
+        </div>
+        <div class="f">
+          <label>المدينة</label>
+          <input id="ssCity" value="${esc(s.city || '')}" placeholder="الرياض">
+        </div>
+      </div>
+
+      <div class="f">
+        <label>رابط متجرك (slug) *</label>
+        <input id="ssSlug" value="${esc(s.slug || '')}" pattern="[a-z0-9-]+" style="direction:ltr;text-align:right">
+        <div style="font-size:11px;color:#64748b;margin-top:4px">⚠️ تغيير الرابط يُبطل الرابط القديم الذي شاركته مع زبائنك</div>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin:10px 0">
+        <div style="font-size:12px;color:#64748b;margin-bottom:4px">رابطك الحالي:</div>
+        <div style="font-family:monospace;font-size:11.5px;direction:ltr;word-break:break-all">${esc(location.origin + '/#shop=' + s.slug)}</div>
+      </div>
+
+      <button class="b p" style="padding:11px 24px;font-weight:700" onclick="saveShopProfile()">💾 حفظ البيانات</button>
+    </div>
+
     <div class="panel">
       <h2>🔑 تغيير كلمة المرور</h2>
       <div class="f"><label>كلمة المرور الحالية</label><input id="curPass" type="password"></div>
-      <div class="f"><label>الجديدة</label><input id="newPass" type="password"></div>
-      <div class="f"><label>تأكيد الجديدة</label><input id="newPass2" type="password"></div>
-      <button class="b p" style="padding:11px 24px" onclick="shopChangePass()">💾 حفظ</button>
+      <div class="g2">
+        <div class="f"><label>الجديدة</label><input id="newPass" type="password" placeholder="4 أحرف على الأقل"></div>
+        <div class="f"><label>تأكيد الجديدة</label><input id="newPass2" type="password"></div>
+      </div>
+      <button class="b p" style="padding:11px 24px;font-weight:700" onclick="shopChangePass()">💾 حفظ كلمة المرور</button>
     </div>
+
     <div class="panel">
       <h2>ℹ️ معلومات حسابك</h2>
-      <p style="font-size:13px;color:#64748b;line-height:2">
-        <strong>الاسم:</strong> ${esc(session.shop.name)}<br>
-        <strong>الرابط:</strong> /${esc(session.shop.slug)}<br>
-        <strong>واتساب:</strong> ${esc(session.shop.whatsapp || '—')}<br>
-        <strong>ينتهي:</strong> ${session.shop.expires_at ? new Date(session.shop.expires_at).toLocaleDateString('ar') : '—'}
-      </p>
+      <div style="font-size:13px;color:#64748b;line-height:2">
+        <div><strong>الحالة:</strong> ${s.status === 'active' ? '<span class="bd o">نشط</span>' : '<span class="bd r">موقوف</span>'}</div>
+        <div><strong>ينتهي في:</strong> ${s.expires_at ? new Date(s.expires_at).toLocaleDateString('ar') : '—'}</div>
+        <div><strong>الحد الأقصى للمنتجات:</strong> ${s.max_products || 100}</div>
+        <div><strong>عدد منتجاتك الحالي:</strong> <span id="ssCount">...</span></div>
+      </div>
     </div>
   `;
-}
 
+  // جلب عدد المنتجات
+  db.from('products').select('id').eq('shop_id', s.id).then(function(r) {
+    const cnt = (r.data || []).length;
+    const el = $('#ssCount');
+    if (el) el.textContent = cnt;
+  });
+}
+  async function saveShopProfile() {
+  const name = $('#ssName').value.trim();
+  const owner = $('#ssOwner').value.trim();
+  const wa = $('#ssWa').value.trim();
+  const city = $('#ssCity').value.trim();
+  const slug = $('#ssSlug').value.trim().toLowerCase();
+
+  if (!name) return alert('اسم المحل مطلوب');
+  if (!wa) return alert('رقم واتساب مطلوب');
+  if (!slug) return alert('الرابط مطلوب');
+  if (!/^[a-z0-9-]+$/.test(slug)) return alert('الرابط: حروف إنجليزية صغيرة وأرقام وشُرَط فقط');
+
+  // التحقق من عدم تكرار الاسم
+  const dupName = await sqlQuery('SELECT id FROM shops WHERE name = $1 AND id != $2', [name, session.shop.id]);
+  if (dupName.length > 0) return alert('⚠️ اسم المحل مستخدم من قبل. اختر اسماً آخر.');
+
+  // التحقق من عدم تكرار الرابط
+  const dupSlug = await sqlQuery('SELECT id FROM shops WHERE slug = $1 AND id != $2', [slug, session.shop.id]);
+  if (dupSlug.length > 0) return alert('⚠️ الرابط مستخدم من قبل. اختر رابطاً آخر.');
+
+  // لو تغيّر الرابط، تنبيه
+  if (slug !== session.shop.slug) {
+    if (!confirm('⚠️ تغيير الرابط يُبطل الرابط القديم:\n' + location.origin + '/#shop=' + session.shop.slug + '\n\nالرابط الجديد:\n' + location.origin + '/#shop=' + slug + '\n\nمتابعة؟')) return;
+  }
+
+  try {
+    await sqlQuery(
+      'UPDATE shops SET name=$1, owner_name=$2, whatsapp=$3, city=$4, slug=$5 WHERE id=$6',
+      [name, owner, wa, city, slug, session.shop.id]
+    );
+
+    // تحديث session.shop
+    session.shop.name = name;
+    session.shop.owner_name = owner;
+    session.shop.whatsapp = wa;
+    session.shop.city = city;
+    session.shop.slug = slug;
+
+    // تحديث localStorage للجلسة
+    localStorage.setItem('gold_shop_session', JSON.stringify({ id: session.shop.id, slug: slug }));
+
+    // تحديث العنوان في الأعلى
+    $('#shopTitle').textContent = name;
+
+    alert('✅ تم حفظ البيانات بنجاح');
+    shopSettings(); // إعادة رسم الصفحة
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+  }
+}
 async function shopChangePass() {
   const cur = $('#curPass').value;
   const np = $('#newPass').value;
@@ -1529,7 +1630,7 @@ Object.assign(window, {
   copyShopLink, shopSettings, shopChangePass, runCalc,
   shopEditProduct, renderProductForm, filterPublic,
   shopSearchChange, togglePublicLink, publicSearchChange,handleImageUpload, removeProductImage,
-  openShopEditModal, saveShopEdit,
+  openShopEditModal, saveShopEdit,saveShopProfile,
   copyToClipboard   // ← أضف هذا
 });
 
