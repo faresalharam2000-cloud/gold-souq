@@ -861,7 +861,7 @@ function calcPrice(p) {
   else making = parseFloat(p.making_charge_value || 0);
   return base + making;
 }
-let editingProductId = null;
+let editingProductId = null
 
 function shopAddProduct() {
   editingProductId = null;
@@ -877,8 +877,6 @@ function shopEditProduct(id) {
     $$('#shopScreen .nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === 'addProduct'));
   });
 }
-let editingProductId = null;
-
 function renderProductForm(p) {
   const tagsStr = (p.tags || []).join('، ');
   const autoSku = p.sku || ('P-' + Date.now().toString(36).toUpperCase().slice(-6));
