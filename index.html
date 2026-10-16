@@ -344,11 +344,30 @@ function showShopScreen() { hideAll(); $('#shopScreen').classList.remove('h'); $
 function showPublicScreen() { hideAll(); $('#publicScreen').classList.remove('h'); }
 
 // ==================== Admin Panel ====================
-async function adminLoadList() {
+  async function adminLoadList() {
   const r = await db.from('shops').select('*').order('created_at', { ascending: false });
   adminList = r.data || [];
-}
 
+  // جلب الإحصائيات (عدد المنتجات + حجم التخزين)
+  try {
+    const stats = await sqlQuery(`
+      SELECT 
+        s.id,
+        COUNT(p.id)::int as product_count,
+        COALESCE(SUM(LENGTH(p.image_data)), 0)::bigint as image_bytes
+      FROM shops s
+      LEFT JOIN products p ON p.shop_id = s.id
+      GROUP BY s.id
+    `);
+    const statsMap = {};
+    stats.forEach(function(s) { statsMap[s.id] = s; });
+    adminList.forEach(function(s) {
+      s._stats = statsMap[s.id] || { product_count: 0, image_bytes: 0 };
+    });
+  } catch (e) {
+    console.error('stats error:', e);
+  }
+}
 function adminTab(t) {
   $$('#adminScreen .nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   if (t === 'prices') adminPrices();
@@ -397,7 +416,7 @@ async function savePrices() {
 }
 function adminShops() {
   let rows = '';
-  adminList.forEach((s, i) => {
+  adminList.forEach(function(s, i) {
     const expired = s.expires_at && new Date(s.expires_at) < new Date();
     const days = s.expires_at ? Math.ceil((new Date(s.expires_at) - new Date()) / 86400000) : null;
     let statusBadge = s.status === 'suspended' ? '<span class="bd r">موقوف</span>' :
@@ -410,55 +429,171 @@ function adminShops() {
          : '<span class="bd o">' + days + ' يوم</span>')
       : '—';
 
-    // عرض كلمة السر مع زر نسخ
-    const pwHtml = '<span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;font-size:12px" onclick="copyToClipboard(\'' + esc(s.password).replace(/'/g, "\\'") + '\', this)" title="اضغط للنسخ">' + esc(s.password) + '</span>';
+    const pwHtml = '<span style="font-family:monospace;background:#f1f5f9;padding:3px 8px;border-radius:6px;cursor:pointer;border:1px solid #e2e8f0;font-size:12px" onclick="copyToClipboard(\'' + esc(s.password || '').replace(/'/g, "\\'") + '\', this)" title="اضغط للنسخ">' + esc(s.password || '—') + '</span>';
 
-    rows += `<tr>
-      <td>${i+1}</td>
-      <td><strong>${esc(s.name)}</strong><div style="font-size:11px;color:#64748b">${esc(s.owner_name || '—')}</div></td>
-      <td><a href="#shop=${esc(s.slug)}" target="_blank" style="color:#c9a227;font-weight:700">/${esc(s.slug)}</a></td>
-      <td style="direction:ltr;text-align:right">${esc(s.whatsapp || '—')}</td>
-      <td>${pwHtml}</td>
-      <td>${daysBadge}</td>
-      <td>${statusBadge}</td>
-      <td>
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="b sm w" onclick="extendShop('${s.id}')">➕ تمديد</button>
-          <button class="b sm ${s.status === 'active' ? 'd' : 's'}" onclick="toggleShop('${s.id}')">${s.status === 'active' ? '⏸️ إيقاف' : '▶️ تفعيل'}</button>
-          <button class="b sm" onclick="resetShopPass('${s.id}')">🔑 تغيير</button>
-          <button class="b sm d" onclick="deleteShop('${s.id}')">🗑️</button>
-        </div>
-      </td>
-    </tr>`;
+    // ====== إحصائيات التخزين والمنتجات ======
+    const st = s._stats || { product_count: 0, image_bytes: 0 };
+    const maxP = s.max_products || 100;
+    const usedP = parseInt(st.product_count) || 0;
+    const usedPct = Math.min(100, Math.round((usedP / maxP) * 100));
+
+    // حجم التخزين بالكيلوبايت
+    const bytes = parseInt(st.image_bytes) || 0;
+    const kb = bytes / 1024;
+    let sizeStr;
+    if (kb < 1024) sizeStr = kb.toFixed(1) + ' KB';
+    else sizeStr = (kb / 1024).toFixed(2) + ' MB';
+
+    // لون شريط الاستخدام
+    const barColor = usedPct >= 90 ? '#dc2626' : usedPct >= 70 ? '#d97706' : '#16a34a';
+
+    const productCell =
+      '<div style="min-width:120px">' +
+        '<div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:3px">' +
+          '<strong>' + usedP + '</strong><span style="color:#64748b">/ ' + maxP + '</span>' +
+        '</div>' +
+        '<div style="background:#f1f5f9;height:6px;border-radius:3px;overflow:hidden">' +
+          '<div style="background:' + barColor + ';height:100%;width:' + usedPct + '%"></div>' +
+        '</div>' +
+      '</div>';
+
+    const storageCell =
+      '<div style="text-align:center">' +
+        '<div style="font-size:13px;font-weight:700;color:#2563eb">' + sizeStr + '</div>' +
+        '<div style="font-size:10.5px;color:#64748b;margin-top:2px">صور</div>' +
+      '</div>';
+
+    rows += '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td><strong>' + esc(s.name) + '</strong><div style="font-size:11px;color:#64748b">' + esc(s.owner_name || '—') + '</div></td>' +
+      '<td><a href="#shop=' + esc(s.slug) + '" target="_blank" style="color:#c9a227;font-weight:700">/' + esc(s.slug) + '</a></td>' +
+      '<td style="direction:ltr;text-align:right">' + esc(s.whatsapp || '—') + '</td>' +
+      '<td>' + productCell + '</td>' +
+      '<td>' + storageCell + '</td>' +
+      '<td>' + pwHtml + '</td>' +
+      '<td>' + daysBadge + '</td>' +
+      '<td>' + statusBadge + '</td>' +
+      '<td><div style="display:flex;gap:4px;flex-wrap:wrap">' +
+        '<button class="b sm p" onclick="openShopEditModal(\'' + s.id + '\')">✏️ تعديل</button>' +
+        '<button class="b sm w" onclick="extendShop(\'' + s.id + '\')">➕</button>' +
+        '<button class="b sm ' + (s.status === 'active' ? 'd' : 's') + '" onclick="toggleShop(\'' + s.id + '\')">' + (s.status === 'active' ? '⏸️' : '▶️') + '</button>' +
+        '<button class="b sm d" onclick="deleteShop(\'' + s.id + '\')">🗑️</button>' +
+      '</div></td>' +
+    '</tr>';
   });
+
   $('#adminContent').innerHTML = `
     <div class="panel">
       <h2>🏪 المحلات (${adminList.length})</h2>
-      <p style="color:#64748b;font-size:12.5px;margin-bottom:14px">💡 اضغط على كلمة السر لنسخها</p>
+      <p style="color:#64748b;font-size:12.5px;margin-bottom:14px">💡 اضغط على كلمة السر لنسخها • اضغط "✏️ تعديل" لتعديل بيانات الحساب</p>
       <div class="tbl-wrap">
         <table>
           <thead><tr>
             <th>#</th><th>المحل</th><th>الرابط</th><th>واتساب</th>
-            <th>كلمة السر</th><th>المتبقي</th><th>الحالة</th><th>إجراءات</th>
+            <th>المنتجات</th><th>التخزين</th><th>كلمة السر</th>
+            <th>المتبقي</th><th>الحالة</th><th>إجراءات</th>
           </tr></thead>
-          <tbody>${rows || '<tr><td colspan="8" class="empty">لا محلات بعد</td></tr>'}</tbody>
+          <tbody>${rows || '<tr><td colspan="10" class="empty">لا محلات بعد</td></tr>'}</tbody>
         </table>
       </div>
     </div>
   `;
+}
+  function openShopEditModal(id) {
+  const s = adminList.find(function(x) { return x.id === id; });
+  if (!s) return;
+
+  const maxP = s.max_products || 100;
+
+  const body =
+    '<div class="g2">' +
+      '<div class="f"><label>اسم المحل *</label><input id="editName" value="' + esc(s.name || '') + '"></div>' +
+      '<div class="f"><label>اسم المالك</label><input id="editOwner" value="' + esc(s.owner_name || '') + '"></div>' +
+    '</div>' +
+    '<div class="g2">' +
+      '<div class="f"><label>الرابط (slug) *</label><input id="editSlug" value="' + esc(s.slug || '') + '" pattern="[a-z0-9-]+"></div>' +
+      '<div class="f"><label>رقم واتساب *</label><input id="editWa" value="' + esc(s.whatsapp || '') + '" placeholder="966501234567"></div>' +
+    '</div>' +
+    '<div class="g2">' +
+      '<div class="f"><label>المدينة</label><input id="editCity" value="' + esc(s.city || '') + '"></div>' +
+      '<div class="f"><label>كلمة المرور *</label><input id="editPass" value="' + esc(s.password || '') + '"></div>' +
+    '</div>' +
+    '<div class="f">' +
+      '<label>الحد الأقصى للمنتجات *</label>' +
+      '<input id="editMaxP" type="number" min="10" max="10000" value="' + maxP + '">' +
+      '<div style="font-size:11.5px;color:#64748b;margin-top:4px">💡 الحالي: ' + (s._stats ? s._stats.product_count : 0) + ' منتج</div>' +
+    '</div>' +
+    '<div class="f">' +
+      '<label>ملاحظة داخلية (لا يراها الصائغ)</label>' +
+      '<textarea id="editNotes" rows="2" style="font-family:inherit;resize:vertical">' + esc(s.notes || '') + '</textarea>' +
+    '</div>';
+
+  const footer =
+    '<button class="b" onclick="closeModal()">إلغاء</button>' +
+    '<button class="b p" onclick="saveShopEdit(\'' + id + '\')">💾 حفظ التعديلات</button>';
+
+  openModal('✏️ تعديل بيانات: ' + s.name, body, footer);
+}
+
+async function saveShopEdit(id) {
+  const name = $('#editName').value.trim();
+  const owner = $('#editOwner').value.trim();
+  const slug = $('#editSlug').value.trim().toLowerCase();
+  const wa = $('#editWa').value.trim();
+  const city = $('#editCity').value.trim();
+  const pass = $('#editPass').value;
+  const maxP = parseInt($('#editMaxP').value) || 100;
+  const notes = $('#editNotes').value.trim();
+
+  if (!name) return alert('اسم المحل مطلوب');
+  if (!slug) return alert('الرابط مطلوب');
+  if (!/^[a-z0-9-]+$/.test(slug)) return alert('الرابط: حروف إنجليزية صغيرة وأرقام وشُرَط فقط');
+  if (!wa) return alert('رقم واتساب مطلوب');
+  if (!pass || pass.length < 4) return alert('كلمة المرور 4 أحرف على الأقل');
+  if (maxP < 10) return alert('الحد الأقصى 10 على الأقل');
+
+  const s = adminList.find(function(x) { return x.id === id; });
+  if (!s) return;
+
+  // التحقق من عدم تكرار الاسم أو الرابط
+  const dupName = await sqlQuery('SELECT id FROM shops WHERE name = $1 AND id != $2', [name, id]);
+  if (dupName.length > 0) return alert('⚠️ اسم المحل مستخدم من قبل');
+
+  const dupSlug = await sqlQuery('SELECT id FROM shops WHERE slug = $1 AND id != $2', [slug, id]);
+  if (dupSlug.length > 0) return alert('⚠️ الرابط مستخدم من قبل');
+
+  // تحذير لو الحد الجديد أصغر من عدد المنتجات الحالي
+  const currentCount = s._stats ? s._stats.product_count : 0;
+  if (maxP < currentCount) {
+    if (!confirm('⚠️ الحد الجديد (' + maxP + ') أقل من عدد المنتجات الحالي (' + currentCount + ').\n\nالصائغ لن يستطيع إضافة منتجات جديدة حتى يحذف. متابعة؟')) return;
+  }
+
+  try {
+    await sqlQuery(
+      'UPDATE shops SET name=$1, owner_name=$2, slug=$3, whatsapp=$4, city=$5, password=$6, max_products=$7, notes=$8 WHERE id=$9',
+      [name, owner, slug, wa, city, pass, maxP, notes, id]
+    );
+    closeModal();
+    await adminLoadList();
+    adminTab('shops');
+    alert('✅ تم حفظ التعديلات');
+  } catch (e) {
+    alert('❌ خطأ: ' + e.message);
+  }
 }
 function adminAddShop() {
   $('#adminContent').innerHTML = `
     <div class="panel">
       <h2>➕ إنشاء حساب صائغ</h2>
       <div class="g2">
-        <div class="f"><label>اسم المحل *</label><input id="nsName" placeholder="مثال: مجوهرات الفيصل"></div>
+        <div class="f"><label>اسم المحل *</label><input id="nsName" placeholder="مجوهرات الفيصل"></div>
         <div class="f"><label>اسم المالك</label><input id="nsOwner" placeholder="اسم صاحب المحل"></div>
-        <div class="f"><label>الرابط (slug) *</label><input id="nsSlug" placeholder="faisal-gold" pattern="[a-z0-9-]+"></div>
+        <div class="f"><label>الرابط (slug) *</label><input id="nsSlug" placeholder="faisal-gold"></div>
         <div class="f"><label>كلمة المرور *</label><input id="nsPass" placeholder="4 أحرف على الأقل"></div>
         <div class="f"><label>رقم واتساب *</label><input id="nsWa" placeholder="966501234567"></div>
         <div class="f"><label>المدينة</label><input id="nsCity" placeholder="الرياض"></div>
         <div class="f"><label>المدة (أيام) *</label><input id="nsDays" type="number" value="30" min="1"></div>
+        <div class="f"><label>الحد الأقصى للمنتجات *</label><input id="nsMaxP" type="number" value="100" min="10"></div>
       </div>
       <button class="b p" style="padding:11px 24px" onclick="createShop()">🚀 إنشاء الحساب</button>
     </div>
@@ -473,27 +608,25 @@ async function createShop() {
   const wa = $('#nsWa').value.trim();
   const city = $('#nsCity').value.trim();
   const days = parseInt($('#nsDays').value) || 30;
+  const maxP = parseInt($('#nsMaxP').value) || 100;
 
   if (!name || !slug || !pass || !wa) return alert('املأ الحقول الإجبارية');
-  if (!/^[a-z0-9-]+$/.test(slug)) return alert('الرابط يجب أن يكون حروف إنجليزية صغيرة وأرقام وشُرَط فقط');
+  if (!/^[a-z0-9-]+$/.test(slug)) return alert('الرابط: حروف إنجليزية صغيرة وأرقام وشُرَط فقط');
   if (pass.length < 4) return alert('كلمة المرور 4 أحرف على الأقل');
-  // التحقق من عدم وجود اسم مطابق
-  const dupCheck = await db.from('shops').select('id').eq('name', name).single();
-  if (dupCheck.data) return alert('⚠️ يوجد محل بنفس الاسم بالفعل. اختر اسماً آخر.');
+  if (maxP < 10) return alert('الحد الأقصى 10 على الأقل');
 
   const exp = new Date(); exp.setDate(exp.getDate() + days);
 
   try {
-    const r = await db.from('shops').insert({
-      name, owner_name: owner, slug, password: pass, whatsapp: wa, city,
-      expires_at: exp.toISOString(), status: 'active'
-    });
-    if (r.error) throw new Error(r.error.message);
-    alert('✅ تم إنشاء الحساب\n\nالرابط: ' + location.origin + '/#shop=' + slug + '\nكلمة المرور: ' + pass + '\nينتهي: ' + exp.toLocaleDateString('ar'));
+    await sqlQuery(
+      'INSERT INTO shops (name, owner_name, slug, password, whatsapp, city, expires_at, status, max_products) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      [name, owner, slug, pass, wa, city, exp.toISOString(), 'active', maxP]
+    );
+    alert('✅ تم إنشاء الحساب\n\nالرابط: ' + location.origin + '/#shop=' + slug + '\nكلمة المرور: ' + pass + '\nالحد الأقصى: ' + maxP + ' منتج\nينتهي: ' + exp.toLocaleDateString('ar'));
     await adminLoadList();
     adminTab('shops');
   } catch (e) {
-    if (e.message.includes('duplicate') || e.message.includes('unique')) alert('الرابط مستخدم من قبل');
+    if (e.message.indexOf('duplicate') !== -1 || e.message.indexOf('unique') !== -1) alert('الاسم أو الرابط مستخدم من قبل');
     else alert('خطأ: ' + e.message);
   }
 }
@@ -862,10 +995,20 @@ function calcPrice(p) {
   return base + making;
 }
 let editingProductId = null
-
+  
 function shopAddProduct() {
   editingProductId = null;
-  renderProductForm({});
+
+  // التحقق من الحد الأقصى
+  const maxP = session.shop.max_products || 100;
+  db.from('products').select('id').eq('shop_id', session.shop.id).then(function(r) {
+    const count = (r.data || []).length;
+    if (count >= maxP) {
+      alert('⚠️ وصلت للحد الأقصى (' + maxP + ' منتج).\n\nاحذف منتجات قديمة أو تواصل مع المدير لرفع الحد.');
+      return;
+    }
+    renderProductForm({});
+  });
 }
 function shopEditProduct(id) {
   db.from('products').select('*').eq('id', id).single().then(r => {
@@ -1386,6 +1529,7 @@ Object.assign(window, {
   copyShopLink, shopSettings, shopChangePass, runCalc,
   shopEditProduct, renderProductForm, filterPublic,
   shopSearchChange, togglePublicLink, publicSearchChange,handleImageUpload, removeProductImage,
+  openShopEditModal, saveShopEdit,
   copyToClipboard   // ← أضف هذا
 });
 
